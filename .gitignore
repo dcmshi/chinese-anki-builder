@@ -1,0 +1,77 @@
+# ── Virtual environment ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── uv ────────────────────────────────────────────────────────────────────────
+# uv.lock is intentionally committed (reproducible installs)
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.pyo
+*.so
+
+# ── Build / distribution ──────────────────────────────────────────────────────
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ── Testing & coverage ────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# ── Generated output ──────────────────────────────────────────────────────────
+output/
+*.apkg
+
+# ── Downloaded data (auto-fetched at runtime) ─────────────────────────────────
+data/cedict.txt
+data/cedict.txt.gz
+
+# ── Input books (keep your own copies outside the repo) ───────────────────────
+*.epub
+*.pdf
+
+# ── Config overrides ──────────────────────────────────────────────────────────
+config.local.yaml
+
+# ── OS noise ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Claude Code local settings ───────────────────────────────────────────────
+.claude/settings.local.json
+
+# ── Editor / IDE ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log

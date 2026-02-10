@@ -1,0 +1,21 @@
+# Default configuration for Anki Chinese Deck Builder
+
+# Word selection
+top_words: 150
+min_frequency: 2
+
+# HSK filtering (optional)
+# Uncomment to filter by HSK level
+# hsk_levels: [1, 2, 3, 4, 5]
+
+# TTS audio generation
+enable_tts: false
+
+# Output
+output_dir: "output"
+stats_file: null  # Set to a path to export stats (e.g., "stats.json")
+
+# Processing
+# Minimum sentence length for context
+min_sentence_length: 10
+max_sentence_length: 100

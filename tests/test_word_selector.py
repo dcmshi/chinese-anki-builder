@@ -1,0 +1,139 @@
+"""Tests for word selection and card creation."""
+
+import pytest
+from collections import Counter
+from process.word_selector import (
+    select_top_words,
+    find_sentence_for_word,
+    create_word_cards,
+    WordCard,
+)
+from process.cedict_loader import DictEntry
+
+
+class TestWordSelector:
+    """Test word selection functionality."""
+
+    def test_select_top_words_basic(self):
+        """Test basic word selection by frequency."""
+        word_freq = Counter({"你好": 10, "世界": 8, "中国": 6, "学习": 4, "汉语": 2})
+
+        selected = select_top_words(word_freq, top_n=3, min_freq=1)
+
+        assert len(selected) == 3
+        assert "你好" in selected  # Highest frequency
+        assert "世界" in selected
+        assert "中国" in selected
+
+    def test_select_top_words_min_freq(self):
+        """Test minimum frequency filtering."""
+        word_freq = Counter({"你好": 10, "世界": 2, "中国": 1})
+
+        selected = select_top_words(word_freq, top_n=10, min_freq=3)
+
+        assert len(selected) == 1
+        assert "你好" in selected
+        assert "世界" not in selected
+        assert "中国" not in selected
+
+    def test_select_top_words_exclude(self):
+        """Test word exclusion."""
+        word_freq = Counter({"你好": 10, "世界": 8, "中国": 6})
+        exclude = {"你好"}
+
+        selected = select_top_words(word_freq, top_n=2, exclude_words=exclude)
+
+        assert len(selected) == 2
+        assert "你好" not in selected
+        assert "世界" in selected
+        assert "中国" in selected
+
+    def test_find_sentence_for_word(self):
+        """Test finding example sentences."""
+        sentences = [
+            "你好",  # Too short (< 10 chars)
+            "你好世界这是一个测试",  # 10 chars, suitable
+            "这是一个很长的句子包含了你好这个词语在里面测试用例",  # Long but acceptable
+            "简短句子你好在这里",  # 9 chars, too short
+        ]
+
+        result = find_sentence_for_word("你好", sentences)
+
+        assert result is not None
+        assert "你好" in result
+        # Should find a sentence in the acceptable range (10-100 chars)
+        assert len(result) >= 10
+
+    def test_find_sentence_no_match(self):
+        """Test when word not found in sentences."""
+        sentences = ["你好世界", "中国加油"]
+
+        result = find_sentence_for_word("学习", sentences)
+
+        assert result is None
+
+    def test_create_word_cards_with_cedict(self):
+        """Test card creation filters out words without definitions."""
+        words = ["你好", "罗辑", "世界"]  # "罗辑" is a name, not in dict
+        sentences = [
+            "你好世界",
+            "罗辑说话了",
+            "这是世界",
+        ]
+        word_freq = Counter({"你好": 10, "罗辑": 5, "世界": 8})
+
+        # Mock CEDICT with only some words
+        cedict = {
+            "你好": DictEntry("你好", "你好", "nǐ hǎo", ["hello"]),
+            "世界": DictEntry("世界", "世界", "shì jiè", ["world"]),
+        }
+
+        cards = create_word_cards(words, sentences, word_freq, cedict=cedict)
+
+        # Should only create cards for words in CEDICT
+        assert len(cards) == 2
+        card_words = [card.word for card in cards]
+        assert "你好" in card_words
+        assert "世界" in card_words
+        assert "罗辑" not in card_words  # Filtered out - no definition
+
+    def test_create_word_cards_without_cedict(self):
+        """Test card creation without CEDICT filtering."""
+        words = ["你好", "罗辑"]
+        sentences = ["你好世界", "罗辑说话了"]
+        word_freq = Counter({"你好": 10, "罗辑": 5})
+
+        # Without cedict, should create cards for all words
+        cards = create_word_cards(words, sentences, word_freq, cedict=None)
+
+        assert len(cards) == 2
+
+    def test_create_word_cards_no_sentence(self):
+        """Test cards are not created when no suitable sentence found."""
+        words = ["你好", "学习"]
+        sentences = ["你好世界"]  # No sentence with "学习"
+        word_freq = Counter({"你好": 10, "学习": 5})
+        cedict = {
+            "你好": DictEntry("你好", "你好", "nǐ hǎo", ["hello"]),
+            "学习": DictEntry("学习", "学习", "xué xí", ["to study"]),
+        }
+
+        cards = create_word_cards(words, sentences, word_freq, cedict=cedict)
+
+        # Only "你好" should have a card
+        assert len(cards) == 1
+        assert cards[0].word == "你好"
+
+    def test_word_card_structure(self):
+        """Test WordCard has correct structure."""
+        card = WordCard(
+            word="你好",
+            sentence="你好世界",
+            frequency=10,
+            chapter="Chapter 1"
+        )
+
+        assert card.word == "你好"
+        assert card.sentence == "你好世界"
+        assert card.frequency == 10
+        assert card.chapter == "Chapter 1"
