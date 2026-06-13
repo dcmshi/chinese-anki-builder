@@ -72,6 +72,15 @@ class TranslationBackend(ABC):
         """
         pass
 
+    def is_initialized(self) -> bool:
+        """
+        Whether initialize() has completed successfully.
+
+        Returns:
+            True if the backend is ready to translate, False otherwise
+        """
+        return self._initialized
+
     def get_quality_score(self) -> int:
         """
         Get a quality score for this backend (0-100).

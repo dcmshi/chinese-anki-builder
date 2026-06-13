@@ -46,11 +46,18 @@ def download_cedict(force: bool = False) -> Path:
 
     print(f"Downloading CC-CEDICT from {CEDICT_URL}...")
 
-    response = requests.get(CEDICT_URL, stream=True)
-    response.raise_for_status()
+    try:
+        # (connect timeout, read timeout) so a stalled server can't hang forever
+        response = requests.get(CEDICT_URL, stream=True, timeout=(10, 60))
+        response.raise_for_status()
+        compressed_data = response.content
+    except requests.RequestException as e:
+        raise RuntimeError(
+            f"Failed to download CC-CEDICT from {CEDICT_URL}: {e}. "
+            f"Check your internet connection, or place a cedict.txt manually at {dict_path}."
+        ) from e
 
-    # Download and decompress
-    compressed_data = response.content
+    # Decompress
     decompressed_data = gzip.decompress(compressed_data)
 
     # Write to file
