@@ -2,6 +2,7 @@
 
 from typing import List, Optional, Dict, Any
 from translate.base import TranslationBackend
+from translate.nllb_backend import NLLBTranslateBackend
 from translate.argos_backend import ArgosTranslateBackend
 from translate.cedict_backend import CEDICTBackend
 
@@ -21,8 +22,11 @@ class TranslationManager:
             backends: List of translation backends (auto-creates default if None)
         """
         if backends is None:
-            # Default backends: Argos (preferred) -> CEDICT (fallback)
+            # Default chain by quality: NLLB (opt-in, highest) -> Argos -> CEDICT.
+            # NLLB only activates if its optional deps are installed; otherwise
+            # is_available() is False and the manager skips it.
             self.backends = [
+                NLLBTranslateBackend(),
                 ArgosTranslateBackend(),
                 CEDICTBackend(),
             ]
