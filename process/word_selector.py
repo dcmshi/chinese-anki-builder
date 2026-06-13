@@ -59,7 +59,12 @@ def select_top_words(
     return top_words
 
 
-def find_sentence_for_word(word: str, sentences: List[str]) -> Optional[str]:
+def find_sentence_for_word(
+    word: str,
+    sentences: List[str],
+    min_len: int = 10,
+    max_len: int = 100,
+) -> Optional[str]:
     """
     Find a good example sentence containing the word.
 
@@ -68,6 +73,8 @@ def find_sentence_for_word(word: str, sentences: List[str]) -> Optional[str]:
     Args:
         word: The word to find
         sentences: List of sentences to search
+        min_len: Minimum acceptable sentence length
+        max_len: Maximum acceptable sentence length
 
     Returns:
         Best sentence containing the word, or None
@@ -79,7 +86,7 @@ def find_sentence_for_word(word: str, sentences: List[str]) -> Optional[str]:
 
     # Prefer shorter sentences (easier to understand)
     # But not too short (need context)
-    candidates = [sent for sent in candidates if 10 <= len(sent) <= 100]
+    candidates = [sent for sent in candidates if min_len <= len(sent) <= max_len]
 
     if not candidates:
         # Fallback to any sentence with the word
@@ -99,6 +106,9 @@ def create_word_cards(
     cedict: Dict = None,
     translation_manager: Optional["TranslationManager"] = None,
     chapter: str = "",
+    sentence_chapters: Optional[Dict[str, str]] = None,
+    min_sentence_length: int = 10,
+    max_sentence_length: int = 100,
 ) -> List[WordCard]:
     """
     Create word cards with example sentences.
@@ -109,7 +119,11 @@ def create_word_cards(
         word_freq: Word frequency counter
         cedict: Optional CC-CEDICT dictionary to filter words with definitions
         translation_manager: Optional translation manager for sentence translation
-        chapter: Optional chapter name
+        chapter: Default chapter name (used when a sentence has no mapped chapter)
+        sentence_chapters: Optional map of sentence text -> chapter title, used to
+            tag each card with the chapter its example sentence came from
+        min_sentence_length: Minimum acceptable example-sentence length
+        max_sentence_length: Maximum acceptable example-sentence length
 
     Returns:
         List of WordCard objects
@@ -125,7 +139,9 @@ def create_word_cards(
             skipped_no_definition += 1
             continue
 
-        sentence = find_sentence_for_word(word, sentences)
+        sentence = find_sentence_for_word(
+            word, sentences, min_len=min_sentence_length, max_len=max_sentence_length
+        )
 
         if sentence:
             # Generate sentence translation using translation manager
@@ -136,11 +152,16 @@ def create_word_cards(
             # Generate sentence pinyin
             sent_pinyin = sentence_to_pinyin(sentence)
 
+            # Tag with the chapter the example sentence came from, if known
+            card_chapter = chapter
+            if sentence_chapters is not None:
+                card_chapter = sentence_chapters.get(sentence, chapter)
+
             card = WordCard(
                 word=word,
                 sentence=sentence,
                 frequency=word_freq[word],
-                chapter=chapter,
+                chapter=card_chapter,
                 sentence_translation=translation,
                 sentence_pinyin=sent_pinyin,
             )

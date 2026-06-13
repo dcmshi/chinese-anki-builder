@@ -50,9 +50,9 @@ class TestDeckBuilder:
 
         assert note.fields[0] == "你好"  # Word
         assert note.fields[1] == "你好世界"  # Sentence
-        assert note.fields[2] == "nǐ hǎo"  # Pinyin
-        assert note.fields[3] == "hello"  # Definition (first one)
-        assert note.fields[5] == "Chapter 1"  # Chapter
+        assert note.fields[3] == "nǐ hǎo"  # Pinyin (word)
+        assert note.fields[4] == "hello"  # Definition (first one)
+        assert note.fields[7] == "Chapter 1"  # Chapter
 
     def test_create_anki_note_without_definition(self):
         """Test creating an Anki note when word not in dictionary."""
@@ -70,7 +70,7 @@ class TestDeckBuilder:
 
         # Should have fallback definition
         assert note.fields[0] == "罗辑"
-        assert note.fields[3] == "[Definition not found in CC-CEDICT]"
+        assert note.fields[4] == "[Definition not found in CC-CEDICT]"
 
     def test_create_anki_note_pinyin_fallback(self):
         """Test that pinyin uses pypinyin when not in CEDICT."""
@@ -86,8 +86,8 @@ class TestDeckBuilder:
         note = create_anki_note(card, cedict, model)
 
         # Should still have pinyin from pypinyin
-        assert note.fields[2] != ""  # Pinyin field not empty
-        assert "ce" in note.fields[2].lower() or "cè" in note.fields[2]
+        assert note.fields[3] != ""  # Pinyin field (word) not empty
+        assert "ce" in note.fields[3].lower() or "cè" in note.fields[3]
 
     def test_anki_note_guid_consistency(self):
         """Test that GUID is set correctly and consistently."""

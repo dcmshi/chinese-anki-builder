@@ -19,7 +19,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Import modules
-from extract.epub_extractor import extract_text_from_epub, get_full_text
+from extract.epub_extractor import extract_text_from_epub
 from extract.pdf_extractor import extract_text_from_pdf
 from process.text_cleaner import clean_text, split_sentences
 from process.tokenizer import tokenize_text, compute_word_frequency, filter_multi_char_words
@@ -67,6 +67,8 @@ def process_pipeline(
     top_words: int = 150,
     min_freq: int = 2,
     output_dir: str = "output",
+    min_sentence_length: int = 10,
+    max_sentence_length: int = 100,
     **kwargs,
 ):
     """
@@ -78,6 +80,8 @@ def process_pipeline(
         top_words: Number of top words to select
         min_freq: Minimum word frequency
         output_dir: Output directory
+        min_sentence_length: Minimum example-sentence length
+        max_sentence_length: Maximum example-sentence length
     """
     # Set deck name from filename if not provided
     if deck_name is None:
@@ -89,16 +93,24 @@ def process_pipeline(
 
     # Step 1: Extract text
     chapters = extract_book(input_path)
-    full_text = get_full_text(chapters)
 
-    # Step 2: Clean text
-    print("\nCleaning text...")
-    cleaned_text = clean_text(full_text)
-
-    # Step 3: Split into sentences
-    print("Splitting into sentences...")
-    sentences = split_sentences(cleaned_text)
-    print(f"Found {len(sentences)} sentences")
+    # Step 2-3: Clean and split each chapter, tracking which chapter each
+    # sentence came from so cards can be tagged with their source chapter.
+    print("\nCleaning text and splitting into sentences...")
+    sentences = []
+    sentence_chapters = {}
+    cleaned_chapter_texts = []
+    for chapter in chapters:
+        cleaned = clean_text(chapter.text)
+        if not cleaned:
+            continue
+        cleaned_chapter_texts.append(cleaned)
+        for sent in split_sentences(cleaned):
+            sentences.append(sent)
+            # First chapter containing a given sentence wins
+            sentence_chapters.setdefault(sent, chapter.title)
+    cleaned_text = "\n".join(cleaned_chapter_texts)
+    print(f"Found {len(sentences)} sentences across {len(chapters)} chapter(s)")
 
     # Step 4: Tokenize
     print("\nTokenizing text...")
@@ -141,7 +153,10 @@ def process_pipeline(
         sentences,
         multi_char_freq,
         cedict=cedict,
-        translation_manager=translation_manager
+        translation_manager=translation_manager,
+        sentence_chapters=sentence_chapters,
+        min_sentence_length=min_sentence_length,
+        max_sentence_length=max_sentence_length,
     )
     print(f"Created {len(cards)} cards with example sentences")
 
@@ -172,11 +187,13 @@ def main():
 
     parser.add_argument("--deck", "-d", help="Deck name (default: filename)")
 
+    # Defaults are None so we can tell whether the user actually passed a
+    # flag; precedence (CLI > config.yaml > built-in default) is resolved below.
     parser.add_argument(
         "--top-words",
         "-n",
         type=int,
-        default=150,
+        default=None,
         help="Number of top words to select (default: 150)",
     )
 
@@ -184,14 +201,14 @@ def main():
         "--min-freq",
         "-m",
         type=int,
-        default=2,
+        default=None,
         help="Minimum word frequency (default: 2)",
     )
 
     parser.add_argument(
         "--output",
         "-o",
-        default="output",
+        default=None,
         help="Output directory (default: output)",
     )
 
@@ -204,28 +221,34 @@ def main():
     parser.add_argument(
         "--tts",
         action="store_true",
+        default=None,
         help="Enable TTS audio generation (not implemented yet)",
     )
 
     args = parser.parse_args()
 
-    # Load config and merge with args
+    # Load config and resolve settings with precedence: CLI > config.yaml > default
     config = load_config(args.config)
 
-    # Command line args override config
+    def resolve(cli_value, config_keys, default):
+        """Pick the CLI value, else the first present config key, else default."""
+        if cli_value is not None:
+            return cli_value
+        for key in config_keys:
+            if config.get(key) is not None:
+                return config[key]
+        return default
+
     params = {
         "input_path": args.input,
-        "deck_name": args.deck,
-        "top_words": args.top_words,
-        "min_freq": args.min_freq,
-        "output_dir": args.output,
-        "enable_tts": args.tts,
+        "deck_name": resolve(args.deck, ["deck_name"], None),
+        "top_words": resolve(args.top_words, ["top_words"], 150),
+        "min_freq": resolve(args.min_freq, ["min_freq", "min_frequency"], 2),
+        "output_dir": resolve(args.output, ["output_dir"], "output"),
+        "enable_tts": resolve(args.tts, ["enable_tts"], False),
+        "min_sentence_length": resolve(None, ["min_sentence_length"], 10),
+        "max_sentence_length": resolve(None, ["max_sentence_length"], 100),
     }
-
-    # Merge config (config values used only if not specified in args)
-    for key, value in config.items():
-        if key in params and params[key] is None:
-            params[key] = value
 
     try:
         process_pipeline(**params)

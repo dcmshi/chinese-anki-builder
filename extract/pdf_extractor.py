@@ -1,6 +1,6 @@
 """Extract text from PDF files."""
 
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 from typing import List
 from extract.epub_extractor import Chapter
 

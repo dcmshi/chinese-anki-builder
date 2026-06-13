@@ -115,14 +115,22 @@ uv run python main.py --input book.epub --deck "Novel" --top-words 3000 --min-fr
 uv run python main.py --input book.epub --deck "Beginner" --top-words 300 --min-freq 10
 ```
 
-**Optional flags**:
+**Optional flags** (wired into the CLI):
 ```bash
 --output <dir>          # Custom output directory
 --config <file>         # Custom YAML config
---tts                   # Enable TTS (not implemented)
---hsk 1-5               # HSK filtering (not implemented)
---stats <file>          # Export stats (not implemented)
+--tts                   # Accepted, but TTS generation is not implemented yet
 ```
+
+**Planned flags** (documented but NOT yet available on the CLI):
+```bash
+--hsk 1-5               # HSK filtering — process/hsk_filter.py is a stub, not wired up
+--stats <file>          # Export stats — config has a stats_file key, no CLI flag yet
+```
+
+Settings read from `config.yaml` (CLI flags override these): `top_words`,
+`min_frequency`, `output_dir`, `enable_tts`, `min_sentence_length`,
+`max_sentence_length`. CLI > config.yaml > built-in default.
 
 ## Key Implementation Notes
 
