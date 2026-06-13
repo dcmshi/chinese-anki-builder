@@ -141,9 +141,14 @@ Settings read from `config.yaml` (CLI flags override these): `top_words`,
 **Pinyin**: pypinyin for sentences, CC-CEDICT primary for words (pypinyin fallback)
 
 **Translation**:
-- Argos Translate (neural MT, Python 3.12-3.13) - Recommended
+- NLLB-200 on CTranslate2 (neural MT, highest quality) - opt-in via `uv sync --extra nllb`
+- Argos Translate (neural MT, Python 3.9-3.13) - default neural backend
 - CC-CEDICT word-by-word (fallback, all Python versions) - Acceptable
-- Pluggable backend system with automatic fallback
+- Pluggable backend system with automatic fallback, ranked by quality score
+  (NLLB 90 > Argos 80 > CC-CEDICT 40). NLLB is skipped automatically unless its
+  optional deps are installed; model repo/tokenizer are overridable via config
+  keys `nllb_model_repo` / `nllb_tokenizer_repo` or env `NLLB_CT2_MODEL` /
+  `NLLB_TOKENIZER`. First run downloads the model (~1GB for distilled-600M).
 
 **Chapter Handling**: Detect chapters in EPUB/PDF, tag cards, fallback to single chapter
 

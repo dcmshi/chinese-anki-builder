@@ -24,6 +24,12 @@ dependencies = [
 tts = [
     "gtts>=2.5.0",
 ]
+# Higher-quality offline translation via NLLB-200 on CTranslate2.
+# ctranslate2 itself comes in transitively through argostranslate.
+nllb = [
+    "transformers>=4.40.0",
+    "huggingface_hub>=0.23.0",
+]
 dev = [
     "pytest>=7.4.0",
     "black>=23.0.0",
