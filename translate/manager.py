@@ -34,6 +34,10 @@ class TranslationManager:
 
         self.active_backend: Optional[TranslationBackend] = None
 
+        # Cache of (text, source_lang, target_lang) -> translation. Many word
+        # cards reuse the same example sentence, so this avoids re-translating.
+        self._cache: Dict[tuple, str] = {}
+
     def initialize(self, prefer_offline: bool = True) -> bool:
         """
         Initialize translation backends.
@@ -107,11 +111,17 @@ class TranslationManager:
         if not text or not text.strip():
             return ""
 
+        # Return a previously computed translation for identical input
+        cache_key = (text, source_lang, target_lang)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
         # Try active backend first
         if self.active_backend:
             try:
                 result = self.active_backend.translate(text, source_lang, target_lang)
                 if result and result.strip():
+                    self._cache[cache_key] = result
                     return result
             except Exception as e:
                 print(f"Translation failed with {self.active_backend.get_name()}: {e}")
@@ -122,18 +132,19 @@ class TranslationManager:
                 if backend == self.active_backend:
                     continue  # Already tried
 
-                if not backend._initialized:
+                if not backend.is_initialized():
                     continue
 
                 try:
                     result = backend.translate(text, source_lang, target_lang)
                     if result and result.strip():
                         print(f"Used fallback: {backend.get_name()}")
+                        self._cache[cache_key] = result
                         return result
                 except Exception as e:
                     print(f"Fallback {backend.get_name()} failed: {e}")
 
-        # If all failed, return empty string
+        # If all failed, return empty string (not cached, so a later retry can succeed)
         return ""
 
     def get_active_backend_name(self) -> str:
@@ -152,7 +163,7 @@ class TranslationManager:
         return [
             {
                 "name": backend.get_name(),
-                "initialized": backend._initialized,
+                "initialized": backend.is_initialized(),
                 "quality": backend.get_quality_score(),
                 "offline": not backend.requires_internet(),
                 "active": backend == self.active_backend,
