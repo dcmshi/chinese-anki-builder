@@ -3,7 +3,10 @@ name = "anki-chinese-deck"
 version = "0.1.0"
 description = "Generate Anki flashcards for learning Chinese from EPUB and PDF books"
 readme = "README.md"
-requires-python = ">=3.9"
+# Capped below 3.14: the Argos Translate neural backend is incompatible with
+# 3.14+. CC-CEDICT fallback works everywhere, but we keep the good backend
+# installable. See translate/argos_backend.py.
+requires-python = ">=3.9,<3.14"
 dependencies = [
     "jieba>=0.42.1",
     "pypinyin>=0.51.0",
