@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="Anki Chinese Deck Builder logo" width="160">
+</p>
+
 # Anki Chinese Deck Builder
 
 Automatically generate Anki flashcards for learning Chinese from EPUB and PDF books.
