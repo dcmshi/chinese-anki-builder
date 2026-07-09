@@ -84,7 +84,7 @@ Test suite status at time of audit: **48/48 passing**.
   reads it; no `--stats` flag.
 - [x] **PDF chapter detection** — whole PDF is one "PDF Book" chapter
   (`extract/pdf_extractor.py:33` TODO); FEATURES.md oversells this.
-- [ ] **Cloze deletion cards** — roadmap item, not started.
+- [x] **Cloze deletion cards** — roadmap item, not started.
 - [x] **Chapter as real Anki tag** — chapter is only a note *field*;
   FEATURES.md suggests "filter by chapter in Anki", which wants genanki
   `tags` (sanitized: no spaces) in addition to the field.

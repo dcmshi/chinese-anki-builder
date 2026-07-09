@@ -11,6 +11,9 @@ min_frequency: 2
 # TTS audio generation
 enable_tts: false
 
+# Card style: false = word-in-sentence cards, true = cloze-deletion cards
+cloze: false
+
 # Output
 output_dir: "output"
 stats_file: null  # Set to a path to export stats (e.g., "stats.json")

@@ -81,6 +81,7 @@ def process_pipeline(
     min_sentence_length: int = 10,
     max_sentence_length: int = 100,
     stats_file: str = None,
+    cloze: bool = False,
     **kwargs,
 ):
     """
@@ -95,6 +96,7 @@ def process_pipeline(
         min_sentence_length: Minimum example-sentence length
         max_sentence_length: Maximum example-sentence length
         stats_file: Optional path to export pipeline stats as JSON
+        cloze: Build cloze-deletion cards instead of word-in-sentence cards
     """
     # Set deck name from filename if not provided
     if deck_name is None:
@@ -182,7 +184,7 @@ def process_pipeline(
     # Step 9: Build Anki deck
     print("\nBuilding Anki deck...")
     output_path = Path(output_dir) / f"{deck_name}.apkg"
-    build_deck(deck_name, cards, cedict, str(output_path))
+    build_deck(deck_name, cards, cedict, str(output_path), cloze=cloze)
 
     # Step 10: Export stats if requested
     if stats_file:
@@ -268,6 +270,13 @@ def main():
     )
 
     parser.add_argument(
+        "--cloze",
+        action="store_true",
+        default=None,
+        help="Build cloze-deletion cards (word blanked out of the sentence)",
+    )
+
+    parser.add_argument(
         "--tts",
         action="store_true",
         default=None,
@@ -298,6 +307,7 @@ def main():
         "min_sentence_length": resolve(None, ["min_sentence_length"], 10),
         "max_sentence_length": resolve(None, ["max_sentence_length"], 100),
         "stats_file": resolve(args.stats, ["stats_file"], None),
+        "cloze": resolve(args.cloze, ["cloze"], False),
     }
 
     try:

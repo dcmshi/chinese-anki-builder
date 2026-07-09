@@ -2,8 +2,9 @@
 
 import genanki
 
-# Model ID - use a random but fixed ID for consistency
+# Model IDs - random but fixed for consistency
 CHINESE_MODEL_ID = 1607392319
+CHINESE_CLOZE_MODEL_ID = 1607392320
 
 # Card template. The Sentence field carries inline HTML highlighting of the
 # target word (see anki.deck_builder.highlight_word_in_sentence), so the front
@@ -76,6 +77,12 @@ CARD_CSS = """
     font-weight: bold;
 }
 
+/* Anki cloze deletions share the highlight color */
+.cloze {
+    color: #ff6b6b;
+    font-weight: bold;
+}
+
 .pinyin {
     font-size: 20px;
     color: #a8a8a8;
@@ -114,6 +121,65 @@ hr {
     margin: 20px 0;
 }
 """
+
+
+# Cloze card: the sentence with the target word blanked out on the front,
+# full details on the back.
+CLOZE_FRONT_TEMPLATE = """
+<div class="sentence">{{cloze:Text}}</div>
+"""
+
+CLOZE_BACK_TEMPLATE = """
+<div class="sentence">{{cloze:Text}}</div>
+{{#SentencePinyin}}
+<div class="sentence-pinyin">{{SentencePinyin}}</div>
+{{/SentencePinyin}}
+
+<hr>
+
+<div class="word-highlight">{{Word}}</div>
+<div class="pinyin">{{Pinyin}}</div>
+<div class="definition">{{Definition}}</div>
+
+{{#SentenceTranslation}}
+<div class="sentence-translation">{{SentenceTranslation}}</div>
+{{/SentenceTranslation}}
+
+{{#Chapter}}
+<div class="chapter-tag">Chapter: {{Chapter}}</div>
+{{/Chapter}}
+"""
+
+
+def get_chinese_cloze_model():
+    """
+    Create and return the Anki cloze model for Chinese sentence cards.
+
+    Returns:
+        genanki.Model (cloze type) for word-blanked sentence cards
+    """
+    return genanki.Model(
+        CHINESE_CLOZE_MODEL_ID,
+        "Chinese Word Cloze",
+        model_type=genanki.Model.CLOZE,
+        fields=[
+            {"name": "Text"},
+            {"name": "Word"},
+            {"name": "Pinyin"},
+            {"name": "Definition"},
+            {"name": "SentencePinyin"},
+            {"name": "SentenceTranslation"},
+            {"name": "Chapter"},
+        ],
+        templates=[
+            {
+                "name": "Cloze",
+                "qfmt": CLOZE_FRONT_TEMPLATE,
+                "afmt": CLOZE_BACK_TEMPLATE,
+            },
+        ],
+        css=CARD_CSS,
+    )
 
 
 def get_chinese_model():

@@ -8,7 +8,7 @@ from pathlib import Path
 import hashlib
 from tqdm import tqdm
 
-from anki.templates import get_chinese_model
+from anki.templates import get_chinese_model, get_chinese_cloze_model
 from process.word_selector import WordCard
 from process.cedict_loader import DictEntry
 from process.pinyin_converter import word_to_pinyin
@@ -58,6 +58,29 @@ def highlight_word_in_sentence(word: str, sentence: str) -> str:
     return escaped_sentence.replace(
         escaped_word, f'<span class="target">{escaped_word}</span>'
     )
+
+
+def cloze_sentence(word: str, sentence: str) -> str:
+    """
+    Return sentence HTML with every occurrence of word turned into an Anki
+    cloze deletion ({{c1::word}}).
+
+    Args:
+        word: The target word to blank out
+        sentence: The example sentence containing it
+
+    Returns:
+        Cloze-marked HTML string for the Text field
+    """
+    escaped_sentence = html.escape(sentence)
+    escaped_word = html.escape(word)
+
+    if not escaped_word or escaped_word not in escaped_sentence:
+        # A cloze note without a deletion is invalid in Anki; callers only
+        # pass sentences known to contain the word, but stay safe.
+        return escaped_sentence
+
+    return escaped_sentence.replace(escaped_word, "{{c1::" + escaped_word + "}}")
 
 
 def chapter_to_tag(chapter: str) -> str:
@@ -143,12 +166,57 @@ def create_anki_note(
     return note
 
 
+def create_cloze_note(
+    card: WordCard,
+    cedict: Dict[str, DictEntry],
+    model: genanki.Model,
+) -> genanki.Note:
+    """
+    Create a cloze note (sentence with the target word blanked) from a card.
+
+    Args:
+        card: WordCard object
+        cedict: CC-CEDICT dictionary
+        model: Anki cloze model
+
+    Returns:
+        genanki.Note object
+    """
+    pinyin = word_to_pinyin(card.word, cedict)
+
+    definition = ""
+    if card.word in cedict:
+        definition = cedict[card.word].get_first_definition()
+    else:
+        definition = "[Definition not found in CC-CEDICT]"
+
+    tag = chapter_to_tag(card.chapter)
+
+    # Distinct GUID namespace so a cloze deck and a regular deck built from
+    # the same book never collide on import.
+    return genanki.Note(
+        model=model,
+        tags=[tag] if tag else [],
+        fields=[
+            cloze_sentence(card.word, card.sentence),  # Text
+            card.word,  # Word
+            pinyin,  # Pinyin
+            definition,  # Definition
+            card.sentence_pinyin or "",  # SentencePinyin
+            card.sentence_translation or "",  # SentenceTranslation
+            card.chapter,  # Chapter
+        ],
+        guid=generate_note_guid(card.word, f"cloze::{card.sentence}"),
+    )
+
+
 def build_deck(
     deck_name: str,
     cards: List[WordCard],
     cedict: Dict[str, DictEntry],
     output_path: str,
     include_audio: bool = False,
+    cloze: bool = False,
 ) -> Path:
     """
     Build and save an Anki deck.
@@ -159,6 +227,7 @@ def build_deck(
         cedict: CC-CEDICT dictionary
         output_path: Path to save the .apkg file
         include_audio: Whether to include audio
+        cloze: Build cloze-deletion cards instead of word-in-sentence cards
 
     Returns:
         Path to the created .apkg file
@@ -170,11 +239,14 @@ def build_deck(
     deck = genanki.Deck(deck_id, deck_name)
 
     # Get model
-    model = get_chinese_model()
+    model = get_chinese_cloze_model() if cloze else get_chinese_model()
 
     # Create and add notes with progress bar
     for card in tqdm(cards, desc="Building deck", unit="card"):
-        note = create_anki_note(card, cedict, model, include_audio)
+        if cloze:
+            note = create_cloze_note(card, cedict, model)
+        else:
+            note = create_anki_note(card, cedict, model, include_audio)
         deck.add_note(note)
 
     # Save deck
