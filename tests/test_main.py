@@ -1,8 +1,11 @@
 """Tests for CLI/config plumbing in main.py."""
 
+import json
+
 import pytest
 
 from main import load_config
+from utils.file_utils import write_stats_json
 
 
 class TestLoadConfig:
@@ -25,3 +28,20 @@ class TestLoadConfig:
         cfg.write_text("", encoding="utf-8")
 
         assert load_config(str(cfg)) == {}
+
+
+class TestStatsExport:
+    def test_write_stats_json_roundtrip(self, tmp_path):
+        stats = {
+            "deck_name": "三体",
+            "cards_created": 2,
+            "cards": [{"word": "你好", "frequency": 10, "chapter": "第一章"}],
+        }
+        path = tmp_path / "nested" / "stats.json"
+
+        write_stats_json(path, stats)
+
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        assert loaded == stats
+        # Chinese must be stored readably, not as \uXXXX escapes.
+        assert "三体" in path.read_text(encoding="utf-8")

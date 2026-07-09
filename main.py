@@ -29,6 +29,7 @@ from process.cedict_loader import load_cedict
 from process.word_selector import select_top_words, create_word_cards
 from anki.deck_builder import build_deck
 from translate.manager import TranslationManager
+from utils.file_utils import write_stats_json
 
 
 def load_config(config_path: str = None) -> dict:
@@ -79,6 +80,7 @@ def process_pipeline(
     output_dir: str = "output",
     min_sentence_length: int = 10,
     max_sentence_length: int = 100,
+    stats_file: str = None,
     **kwargs,
 ):
     """
@@ -92,6 +94,7 @@ def process_pipeline(
         output_dir: Output directory
         min_sentence_length: Minimum example-sentence length
         max_sentence_length: Maximum example-sentence length
+        stats_file: Optional path to export pipeline stats as JSON
     """
     # Set deck name from filename if not provided
     if deck_name is None:
@@ -158,6 +161,7 @@ def process_pipeline(
 
     # Step 8: Create word cards (filter out words without definitions)
     print("\nCreating word cards...")
+    card_stats = {}
     cards = create_word_cards(
         selected_words,
         sentences,
@@ -167,6 +171,7 @@ def process_pipeline(
         sentence_chapters=sentence_chapters,
         min_sentence_length=min_sentence_length,
         max_sentence_length=max_sentence_length,
+        stats_out=card_stats,
     )
     print(f"Created {len(cards)} cards with example sentences")
 
@@ -178,6 +183,34 @@ def process_pipeline(
     print("\nBuilding Anki deck...")
     output_path = Path(output_dir) / f"{deck_name}.apkg"
     build_deck(deck_name, cards, cedict, str(output_path))
+
+    # Step 10: Export stats if requested
+    if stats_file:
+        covered_tokens = sum(card.frequency for card in cards)
+        export = {
+            "input": str(input_path),
+            "deck_name": deck_name,
+            "output": str(output_path),
+            "chapters": len(chapters),
+            "sentences": len(sentences),
+            "total_tokens": stats.total_words,
+            "unique_words": stats.unique_words,
+            "multi_char_words": len(multi_char_freq),
+            "words_selected": len(selected_words),
+            "cards_created": len(cards),
+            "skipped_no_definition": card_stats.get("skipped_no_definition", 0),
+            "skipped_no_sentence": card_stats.get("skipped_no_sentence", 0),
+            "token_coverage": round(covered_tokens / stats.total_words, 4)
+            if stats.total_words
+            else 0.0,
+            "translation_backend": translation_manager.get_active_backend_name(),
+            "cards": [
+                {"word": card.word, "frequency": card.frequency, "chapter": card.chapter}
+                for card in cards
+            ],
+        }
+        write_stats_json(stats_file, export)
+        print(f"Stats exported to {stats_file}")
 
     print("\n" + "=" * 60)
     print("✓ Deck generation complete!")
@@ -229,6 +262,12 @@ def main():
     )
 
     parser.add_argument(
+        "--stats",
+        default=None,
+        help="Export pipeline stats to this JSON file (default: config stats_file)",
+    )
+
+    parser.add_argument(
         "--tts",
         action="store_true",
         default=None,
@@ -258,6 +297,7 @@ def main():
         "enable_tts": resolve(args.tts, ["enable_tts"], False),
         "min_sentence_length": resolve(None, ["min_sentence_length"], 10),
         "max_sentence_length": resolve(None, ["max_sentence_length"], 100),
+        "stats_file": resolve(args.stats, ["stats_file"], None),
     }
 
     try:

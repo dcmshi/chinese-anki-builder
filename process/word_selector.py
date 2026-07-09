@@ -109,6 +109,7 @@ def create_word_cards(
     sentence_chapters: Optional[Dict[str, str]] = None,
     min_sentence_length: int = 10,
     max_sentence_length: int = 100,
+    stats_out: Optional[Dict] = None,
 ) -> List[WordCard]:
     """
     Create word cards with example sentences.
@@ -124,6 +125,8 @@ def create_word_cards(
             tag each card with the chapter its example sentence came from
         min_sentence_length: Minimum acceptable example-sentence length
         max_sentence_length: Maximum acceptable example-sentence length
+        stats_out: Optional dict that receives skip counts
+            (skipped_no_definition / skipped_no_sentence) for stats export
 
     Returns:
         List of WordCard objects
@@ -173,5 +176,9 @@ def create_word_cards(
         print(f"Skipped {skipped_no_definition} words without dictionary definitions")
     if skipped_no_sentence > 0:
         print(f"Skipped {skipped_no_sentence} words without suitable sentences")
+
+    if stats_out is not None:
+        stats_out["skipped_no_definition"] = skipped_no_definition
+        stats_out["skipped_no_sentence"] = skipped_no_sentence
 
     return cards

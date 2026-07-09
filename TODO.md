@@ -80,7 +80,7 @@ Test suite status at time of audit: **48/48 passing**.
   accepted and silently ignored (`main.py:248` resolves `enable_tts`, but
   `process_pipeline` swallows it via `**kwargs`). Either wire it up or make
   the flag print a clear "not implemented" notice.
-- [ ] **Stats export** — `stats_file` exists in `config.yaml:16` but nothing
+- [x] **Stats export** — `stats_file` exists in `config.yaml:16` but nothing
   reads it; no `--stats` flag.
 - [x] **PDF chapter detection** — whole PDF is one "PDF Book" chapter
   (`extract/pdf_extractor.py:33` TODO); FEATURES.md oversells this.

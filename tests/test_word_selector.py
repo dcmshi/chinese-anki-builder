@@ -124,6 +124,22 @@ class TestWordSelector:
         assert len(cards) == 1
         assert cards[0].word == "你好"
 
+    def test_create_word_cards_fills_stats_out(self):
+        """Skip counts are exposed for stats export, not just printed."""
+        words = ["你好", "罗辑", "学习"]  # 罗辑: no definition; 学习: no sentence
+        sentences = ["你好世界"]
+        word_freq = Counter({"你好": 10, "罗辑": 5, "学习": 3})
+        cedict = {
+            "你好": DictEntry("你好", "你好", "ni3 hao3", ["hello"]),
+            "学习": DictEntry("學習", "学习", "xue2 xi2", ["to study"]),
+        }
+
+        stats = {}
+        cards = create_word_cards(words, sentences, word_freq, cedict=cedict, stats_out=stats)
+
+        assert len(cards) == 1
+        assert stats == {"skipped_no_definition": 1, "skipped_no_sentence": 1}
+
     def test_word_card_structure(self):
         """Test WordCard has correct structure."""
         card = WordCard(
