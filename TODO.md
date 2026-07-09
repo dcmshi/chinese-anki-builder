@@ -48,7 +48,7 @@ Test suite status at time of audit: **48/48 passing**.
   separately below it. README/CLAUDE.md promise "sentence with target word
   highlighted". Wrap occurrences of the word in a styled span when building
   the note fields.
-- [ ] **EPUB chapters are read in manifest order, not spine (reading) order**
+- [x] **EPUB chapters are read in manifest order, not spine (reading) order**
   (`extract/epub_extractor.py:34` uses `book.get_items()`). Chapter tags can
   be mis-ordered/mis-attributed. Iterate the spine instead.
 - [ ] **Word pinyin style is inconsistent with sentence pinyin** — CEDICT path
