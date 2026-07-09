@@ -7,7 +7,6 @@ Generate Anki flashcards for learning Chinese from EPUB and PDF books.
 
 import argparse
 import sys
-import os
 from pathlib import Path
 from typing import List
 import yaml

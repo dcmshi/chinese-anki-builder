@@ -105,16 +105,17 @@ def create_anki_note(
     card: WordCard,
     cedict: Dict[str, DictEntry],
     model: genanki.Model,
-    include_audio: bool = False,
 ) -> genanki.Note:
     """
     Create an Anki note from a word card.
+
+    Audio is driven by card.audio_filename (set by the TTS step); the media
+    file itself ships via the package's media_files.
 
     Args:
         card: WordCard object
         cedict: CC-CEDICT dictionary
         model: Anki model
-        include_audio: Whether to include audio (not implemented yet)
 
     Returns:
         genanki.Note object
@@ -215,7 +216,6 @@ def build_deck(
     cards: List[WordCard],
     cedict: Dict[str, DictEntry],
     output_path: str,
-    include_audio: bool = False,
     cloze: bool = False,
     media_files: List[str] = None,
 ) -> Path:
@@ -227,7 +227,6 @@ def build_deck(
         cards: List of WordCard objects
         cedict: CC-CEDICT dictionary
         output_path: Path to save the .apkg file
-        include_audio: Whether to include audio
         cloze: Build cloze-deletion cards instead of word-in-sentence cards
         media_files: Paths of audio files to bundle into the .apkg
 
@@ -248,7 +247,7 @@ def build_deck(
         if cloze:
             note = create_cloze_note(card, cedict, model)
         else:
-            note = create_anki_note(card, cedict, model, include_audio)
+            note = create_anki_note(card, cedict, model)
         deck.add_note(note)
 
     # Save deck
