@@ -63,7 +63,7 @@ Test suite status at time of audit: **48/48 passing**.
   `update_package_index()` (`translate/argos_backend.py:40`) is called before
   checking whether the zh→en model is already installed. Check installed
   packages first so cached/offline runs don't depend on the exception path.
-- [ ] **`.gitignore` doesn't cover new data caches** — only
+- [x] **`.gitignore` doesn't cover new data caches** — only
   `data/cedict.txt(.gz)` is ignored; the NLLB model dir
   (`data/nllb_ct2_model/`, ~1GB) and `data/cache/` (TTS cache) are not.
   Consider ignoring `data/` wholesale.

@@ -44,8 +44,8 @@ output/
 *.apkg
 
 # ── Downloaded data (auto-fetched at runtime) ─────────────────────────────────
-data/cedict.txt
-data/cedict.txt.gz
+# Covers cedict.txt, the ~1GB NLLB CT2 model dir, and the TTS audio cache.
+data/
 
 # ── Input books (keep your own copies outside the repo) ───────────────────────
 *.epub
