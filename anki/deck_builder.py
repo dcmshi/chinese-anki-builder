@@ -137,8 +137,8 @@ def create_anki_note(
     # Get sentence translation
     sentence_translation = card.sentence_translation or ""
 
-    # For now, no audio
-    audio = ""
+    # Audio reference (media file itself ships via the package's media_files)
+    audio = f"[sound:{card.audio_filename}]" if card.audio_filename else ""
 
     # Chapter as a real Anki tag (in addition to the field) so decks can be
     # filtered/studied per chapter in Anki's browser.
@@ -217,6 +217,7 @@ def build_deck(
     output_path: str,
     include_audio: bool = False,
     cloze: bool = False,
+    media_files: List[str] = None,
 ) -> Path:
     """
     Build and save an Anki deck.
@@ -228,6 +229,7 @@ def build_deck(
         output_path: Path to save the .apkg file
         include_audio: Whether to include audio
         cloze: Build cloze-deletion cards instead of word-in-sentence cards
+        media_files: Paths of audio files to bundle into the .apkg
 
     Returns:
         Path to the created .apkg file
@@ -253,7 +255,7 @@ def build_deck(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    genanki.Package(deck).write_to_file(str(output_path))
+    genanki.Package(deck, media_files=media_files or []).write_to_file(str(output_path))
 
     print(f"Deck saved to {output_path}")
     return output_path

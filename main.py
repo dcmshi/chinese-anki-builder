@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from typing import List
 import yaml
+from tqdm import tqdm
 
 # Fix Windows console encoding for Chinese characters. reconfigure() adjusts
 # the stream in place -- rewrapping sys.stdout in a new TextIOWrapper broke
@@ -82,6 +83,7 @@ def process_pipeline(
     max_sentence_length: int = 100,
     stats_file: str = None,
     cloze: bool = False,
+    enable_tts: bool = False,
     **kwargs,
 ):
     """
@@ -97,6 +99,7 @@ def process_pipeline(
         max_sentence_length: Maximum example-sentence length
         stats_file: Optional path to export pipeline stats as JSON
         cloze: Build cloze-deletion cards instead of word-in-sentence cards
+        enable_tts: Generate word audio with gTTS (requires internet + tts extra)
     """
     # Set deck name from filename if not provided
     if deck_name is None:
@@ -181,10 +184,35 @@ def process_pipeline(
         print("ERROR: No cards created. No suitable sentences found.")
         sys.exit(1)
 
+    # Step 8.5: Generate TTS audio (optional, requires internet)
+    media_files = []
+    if enable_tts:
+        from tts.gtts_generator import get_or_create_audio, is_available as tts_available
+
+        if not tts_available():
+            print("Warning: gTTS not installed (uv sync --extra tts); skipping audio")
+        else:
+            print("\nGenerating TTS audio (requires internet)...")
+            consecutive_failures = 0
+            for card in tqdm(cards, desc="Generating audio", unit="card"):
+                audio_path = get_or_create_audio(card.word)
+                if audio_path is not None:
+                    card.audio_filename = audio_path.name
+                    media_files.append(str(audio_path))
+                    consecutive_failures = 0
+                else:
+                    consecutive_failures += 1
+                    if consecutive_failures >= 5:
+                        print("Warning: repeated TTS failures; continuing without audio")
+                        break
+            print(f"Audio generated for {len(media_files)} of {len(cards)} cards")
+
     # Step 9: Build Anki deck
     print("\nBuilding Anki deck...")
     output_path = Path(output_dir) / f"{deck_name}.apkg"
-    build_deck(deck_name, cards, cedict, str(output_path), cloze=cloze)
+    build_deck(
+        deck_name, cards, cedict, str(output_path), cloze=cloze, media_files=media_files
+    )
 
     # Step 10: Export stats if requested
     if stats_file:
@@ -280,7 +308,7 @@ def main():
         "--tts",
         action="store_true",
         default=None,
-        help="Enable TTS audio generation (not implemented yet)",
+        help="Generate word audio with gTTS (requires internet and the tts extra)",
     )
 
     args = parser.parse_args()

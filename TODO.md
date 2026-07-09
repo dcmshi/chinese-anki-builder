@@ -76,7 +76,7 @@ Test suite status at time of audit: **48/48 passing**.
 
 - [ ] **HSK filtering** — `process/hsk_filter.py` is a stub; needs HSK word
   lists, a `hsk_levels` config hookup, and a `--hsk` CLI flag.
-- [ ] **TTS audio** — `tts/gtts_generator.py` is a placeholder; `--tts` is
+- [x] **TTS audio** — `tts/gtts_generator.py` is a placeholder; `--tts` is
   accepted and silently ignored (`main.py:248` resolves `enable_tts`, but
   `process_pipeline` swallows it via `**kwargs`). Either wire it up or make
   the flag print a clear "not implemented" notice.

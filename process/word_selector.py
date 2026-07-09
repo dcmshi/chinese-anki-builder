@@ -20,6 +20,7 @@ class WordCard:
     chapter: str = ""
     sentence_translation: str = ""
     sentence_pinyin: str = ""
+    audio_filename: str = ""  # media filename for [sound:...], set by TTS step
 
     def __repr__(self):
         return f"WordCard({self.word}, freq={self.frequency}, chapter={self.chapter})"
