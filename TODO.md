@@ -46,7 +46,7 @@ cross-checks, and filename/ID edge cases.
   Windows. Sanitize the filename only (the deck keeps its display name).
 - [x] **16 ruff findings** — 15 unused imports across 10 files plus one
   E713 (`not x in` → `x not in`). Add a lint gate so the tree stays clean.
-- [ ] **Integration test for the full pipeline** (TESTING.md TODO) — EPUB →
+- [x] **Integration test for the full pipeline** (TESTING.md TODO) — EPUB →
   .apkg end-to-end with a stubbed CEDICT, asserting on the built deck.
 - [ ] **Direct tests for `utils/chinese_utils.py`** (TESTING.md TODO) —
   currently only covered indirectly.
