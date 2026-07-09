@@ -8,15 +8,17 @@ Automatically generate Anki flashcards for learning Chinese from EPUB and PDF bo
 
 ## Features
 
-- 📚 Extract text from EPUB and PDF files
+- 📚 Extract text from EPUB and PDF files (with chapter detection for both)
 - 🔤 Tokenize Chinese text using jieba
-- 🎯 Select high-frequency multi-character words
-- 📝 Generate word-in-sentence Anki cards
-- 🗣️ Add pinyin (word + sentence) and English definitions
-- 🌐 **NEW:** Pluggable translation backends (Argos Translate neural MT or CC-CEDICT fallback)
-- 🔊 Optional TTS audio support (coming soon)
+- 🎯 Select high-frequency multi-character words, optionally filtered by HSK level
+- 📝 Generate word-in-sentence Anki cards (target word highlighted in the sentence)
+- 🧩 Optional cloze-deletion cards (`--cloze`)
+- 🗣️ Add pinyin (word + sentence, tone marks) and English definitions
+- 🌐 Pluggable translation backends (NLLB-200, Argos Translate neural MT, or CC-CEDICT fallback)
+- 🔊 Optional TTS word audio via gTTS (`--tts`, requires the `tts` extra)
+- 📊 Stats export (`--stats`): counts, coverage, and the selected word list as JSON
 - 💾 Offline-first: downloads required resources only if missing
-- ✅ Quality checks: filters words without definitions, unit tested
+- ✅ Quality checks: filters words without definitions, 200+ unit tests
 
 ## Installation
 
@@ -67,7 +69,10 @@ uv run python main.py --input <file> [options]
 - `--min-freq, -m` - Minimum word frequency (default: 2)
 - `--output, -o` - Output directory (default: output)
 - `--config, -c` - Config file (default: config.yaml)
-- `--tts` - Enable TTS audio (not yet implemented)
+- `--hsk` - Only include HSK words: `3` (up to level 3), `2-4`, or `1,3,5` (7 = 7-9 band)
+- `--stats` - Export pipeline stats to a JSON file
+- `--cloze` - Build cloze-deletion cards (word blanked out of the sentence)
+- `--tts` - Generate word audio with gTTS (requires internet and `uv sync --extra tts`)
 
 ## Configuration
 
@@ -84,13 +89,17 @@ output_dir: "output"
 
 Each card shows:
 
-- **Front**: Sentence with the target word highlighted
+- **Front**: Sentence with the target word highlighted inline
 - **Back**:
-  - Word in Chinese
-  - Pinyin with tones
-  - English definition
+  - Sentence + full-sentence pinyin
+  - Word in Chinese with pinyin (tone marks)
+  - English definition (CC-CEDICT)
+  - Sentence translation
   - Optional audio
-  - Chapter tag (if available)
+  - Chapter (also added as a `chapter::…` Anki tag for filtering)
+
+With `--cloze`, the front instead shows the sentence with the target word
+blanked out (`{{c1::…}}` cloze deletion).
 
 ## How It Works
 
@@ -123,7 +132,9 @@ anki-chinese-deck/
 - `genanki` - Anki deck generation
 - `ebooklib` - EPUB parsing
 - `BeautifulSoup4` - HTML parsing
-- `PyPDF2` - PDF extraction
+- `pypdf` - PDF extraction
+- `argostranslate` - Offline neural MT
+- Optional extras: `nllb` (NLLB-200 on CTranslate2), `tts` (gTTS audio)
 
 ## Roadmap
 
@@ -132,11 +143,11 @@ anki-chinese-deck/
 - [x] CC-CEDICT integration
 - [x] Word frequency analysis
 - [x] Anki deck generation
-- [ ] HSK level filtering
-- [ ] TTS audio generation
-- [ ] Better chapter detection
-- [ ] Cloze deletion cards
-- [ ] Statistics export
+- [x] HSK level filtering
+- [x] TTS audio generation
+- [x] Better chapter detection (EPUB spine order, PDF heading heuristics)
+- [x] Cloze deletion cards
+- [x] Statistics export
 
 ## License
 

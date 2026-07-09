@@ -6,9 +6,9 @@ Your Anki Chinese Deck Builder is ready to use with **uv**.
 
 ### 🎯 What's Installed
 
-- **Python 3.14.3** (managed by uv)
+- **Python 3.13** (managed by uv; the project supports 3.9-3.13)
 - **Virtual environment** at `.venv/`
-- **All dependencies** (jieba, pypinyin, genanki, etc.)
+- **All dependencies** (jieba, pypinyin, genanki, argostranslate, etc.)
 
 ### 🚀 Running the Tool
 
@@ -49,8 +49,11 @@ Edit `config.yaml` to change defaults:
 ```yaml
 top_words: 150        # Number of words to select
 min_frequency: 2      # Minimum word occurrences
-enable_tts: false     # TTS audio (not yet implemented)
+enable_tts: false     # gTTS word audio (needs `uv sync --extra tts`)
+cloze: false          # true = cloze-deletion cards
 output_dir: "output"  # Where to save decks
+stats_file: null      # Set a path to export stats JSON
+# hsk_levels: [1, 2, 3]  # Only include words from these HSK levels
 ```
 
 ### 📊 What Happens During Processing

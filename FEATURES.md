@@ -7,33 +7,39 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 ### ✅ Core Features (Production Ready)
 
 **Text Extraction**:
-- EPUB extraction with chapter detection (ebooklib + BeautifulSoup4)
-- PDF extraction (PyPDF2)
-- Chapter tagging for cards
-- Automatic text normalization
+- EPUB extraction with chapter detection in spine (reading) order (ebooklib + BeautifulSoup4)
+- PDF extraction (pypdf) with heuristic chapter detection (第X章/节/回 headings)
+- Chapter tagging for cards (field + `chapter::…` Anki tag)
+- Automatic text normalization, page-number line removal
 
 **Text Processing**:
 - Text cleaning and sentence splitting
 - Chinese tokenization (jieba)
 - Word frequency analysis across entire book
 - Multi-character word filtering (2+ chars)
+- Optional HSK level filtering (HSK 3.0 lists, auto-downloaded and cached)
 - Top-N word selection by frequency
-- Sentence-word matching for context
+- Sentence-word matching via a character-bigram index (fast on large books)
 
 **Dictionary & Pinyin**:
 - CC-CEDICT integration (auto-download and cache)
-- Word definition lookup (first definition)
+- Word definition lookup (duplicate entries resolved: common words preferred
+  over proper nouns, then richest entry)
 - Definition validation (skip words without definitions)
-- Word pinyin: CC-CEDICT primary, pypinyin fallback
+- Word pinyin: CC-CEDICT primary (numbered pinyin converted to tone marks),
+  pypinyin fallback
 - Sentence pinyin: Full sentence with tone marks
 - Deterministic dictionary caching
 
 **Translation**:
 - Pluggable translation backend system
-- Argos Translate: Neural MT (Python 3.12-3.13)
+- NLLB-200 on CTranslate2: Neural MT, highest quality (opt-in extra)
+- Argos Translate: Neural MT (Python 3.9-3.13)
 - CC-CEDICT: Word-by-word fallback (all Python versions)
-- Automatic backend selection and fallback
-- Quality-based ranking (Argos 80/100, CEDICT 40/100)
+- Automatic backend selection and fallback (failed backends raise so the
+  chain actually engages; failures are never cached)
+- Quality-based ranking (NLLB 90/100, Argos 80/100, CEDICT 40/100)
+- Translation caching within a run (repeated sentences translate once)
 - Improved word-by-word quality:
   - Removes grammatical particles (的, 了, 着, 过)
   - Strips "to" prefix from verbs
@@ -43,38 +49,34 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 **Card Generation**:
 - Anki deck generation (genanki)
 - Beautiful card templates with CSS styling
-- Front: Sentence + highlighted word (pinyin hidden)
+- Front: Sentence with the target word highlighted inline (pinyin hidden)
 - Back: Sentence pinyin, word pinyin, definition, translation
-- Deterministic note IDs (hash-based, no duplicates)
-- Chapter tags included in cards
+- Optional cloze-deletion card type (--cloze)
+- Optional word audio via gTTS (--tts), cached and bundled as media
+- Deterministic note GUIDs (full 128-bit hash, collision-safe)
+- Chapter on every card (field + `chapter::…` tag)
 - Automatic output directory creation
 
 **Quality & Testing**:
-- 24 unit tests covering core modules
-- Test coverage: 52% overall
-  - process/word_selector.py: 95%
-  - process/cedict_loader.py: 59%
-  - anki/deck_builder.py: 66%
+- 223 unit tests covering all modules
+- Test coverage: 85% overall
 - Definition validation
 - Windows UTF-8 console encoding
-- Offline operation after initial CEDICT download
+- Offline operation after initial CEDICT download (cached models skip the
+  network entirely)
 
 **Configuration & CLI**:
-- YAML configuration support
-- CLI with argparse
+- YAML configuration support (CLI > config.yaml > defaults)
+- CLI with argparse (--hsk, --stats, --cloze, --tts wired)
+- Stats export to JSON (counts, coverage, word list)
 - uv-based dependency management
 - Progress bars (tqdm) for long operations
 - Configurable word selection and filtering
 
 ### ⏳ Pending Features
 
-- HSK level filtering (needs HSK word lists)
-- TTS audio generation with gTTS
-- Statistics export (JSON/CSV)
-- Cloze deletion cards
-- Advanced chapter detection
-- Translation caching
-- Known words filtering
+- Known words filtering (skip words the learner already knows)
+- Sentence audio (current TTS covers the word only)
 
 ### ❌ Future Extensions (Optional)
 
@@ -99,21 +101,24 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 
 **Current Backends**:
 
-1. **Argos Translate** (Neural MT)
-   - Quality: 80/100
-   - Python: 3.12-3.13 only (Pydantic v1 limitation)
-   - Fully offline after model download
-   - Natural, grammatical translations
-   - Dependencies: PyTorch, transformers (~150MB models)
-   - Speed: ~30-50 cards/second
+1. **NLLB-200 on CTranslate2** (Neural MT, opt-in)
+   - Quality: 90/100
+   - Install: `uv sync --extra nllb` (skipped automatically otherwise)
+   - Fully offline after the one-time model download (~1GB distilled-600M)
+   - Model/tokenizer overridable via config or env (NLLB_CT2_MODEL / NLLB_TOKENIZER)
 
-2. **CC-CEDICT Word-by-Word** (Fallback)
+2. **Argos Translate** (Neural MT, default)
+   - Quality: 80/100
+   - Python: 3.9-3.13 (project caps requires-python below 3.14 for it)
+   - Fully offline after model download; cached model skips the package index
+   - Natural, grammatical translations
+
+3. **CC-CEDICT Word-by-Word** (Fallback)
    - Quality: 40/100
    - Python: All versions (3.9+)
    - Fast, minimal dependencies
    - Acceptable quality for beginners
    - Improvements: particle handling, cleanup
-   - Speed: ~100+ cards/second
 
 **Future Backend Support**:
 - Online APIs: Google Translate, DeepL, Azure
@@ -125,6 +130,7 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 ```
 translate/
 ├── base.py              # Abstract base class
+├── nllb_backend.py      # NLLB-200 CTranslate2 (opt-in, highest quality)
 ├── argos_backend.py     # Argos Translate implementation
 ├── cedict_backend.py    # CC-CEDICT fallback
 └── manager.py           # Translation orchestrator
@@ -132,8 +138,8 @@ translate/
 
 ### Python Version Compatibility
 
-- **Core project**: Python 3.9+
-- **Argos Translate**: Python 3.12-3.13 only
+- **Core project**: Python 3.9-3.13 (requires-python caps below 3.14)
+- **Argos Translate**: Python 3.9-3.13
 - **CC-CEDICT fallback**: Works with all Python versions
 
 **Python 3.14+ behavior**:
@@ -251,12 +257,12 @@ uv run python main.py \
 
 ### Unit Tests
 
-**Coverage**: 24 tests, 52% overall coverage
+**Coverage**: 223 tests, 85% overall coverage
 
-**Test Modules**:
-- `test_word_selector.py`: 9 tests (95% coverage)
-- `test_cedict_loader.py`: 8 tests (59% coverage)
-- `test_deck_builder.py`: 7 tests (66% coverage)
+**Test Modules**: word selection, CEDICT loading/parsing, deck building,
+text cleaning/sentence splitting, tokenization, pinyin conversion, EPUB/PDF
+extraction, HSK filtering, TTS, cloze cards, translation backends and
+manager fallback, CLI/config plumbing, and repo health (syntax + packaging).
 
 **Run tests**:
 ```bash
@@ -295,7 +301,8 @@ uv run pytest tests/ --cov=. --cov-report=term-missing
 ### PDF Extraction
 
 - Basic text extraction (no OCR)
-- Chapter detection limited compared to EPUB
+- Chapter detection is heading-heuristic based (第X章 …); PDFs without such
+  headings fall back to a single chapter
 - Some PDFs may not extract cleanly
 - *Recommendation*: Use EPUB when available
 
@@ -309,20 +316,21 @@ pypinyin >= 0.51.0           # Pinyin generation
 genanki >= 0.13.0            # Anki deck creation
 ebooklib >= 0.18             # EPUB extraction
 beautifulsoup4 >= 4.12.0     # HTML parsing
-PyPDF2 >= 3.0.1              # PDF extraction
+pypdf >= 4.0.0               # PDF extraction
 pyyaml >= 6.0.1              # Config files
-requests >= 2.31.0           # CC-CEDICT download
+requests >= 2.31.0           # CC-CEDICT / HSK list downloads
+argostranslate >= 1.11.0     # Neural MT (default backend)
 tqdm >= 4.66.0               # Progress bars
 ```
 
-### Optional Dependencies
+### Optional Extras
 
 ```toml
-argostranslate >= 1.9.0      # Neural MT (Python 3.12-3.13 only)
-gtts >= 2.5.0                # TTS (future)
+nllb: transformers, huggingface_hub   # NLLB-200 CT2 backend (uv sync --extra nllb)
+tts: gtts >= 2.5.0                    # Word audio (uv sync --extra tts)
 ```
 
-### Development Dependencies
+### Development Dependencies (dependency group "dev")
 
 ```toml
 pytest >= 8.4.2              # Testing
@@ -354,6 +362,32 @@ ruff >= 0.1.0                # Linting
 - Better UX for large decks (1000+ cards)
 
 ## Recent Updates
+
+### 2026-07-09: Audit Fixes & Feature Completion
+
+**Correctness**
+- ✅ Page-number lines actually removed before whitespace collapsing
+- ✅ Neural translation failures raise so the fallback chain engages
+- ✅ CEDICT duplicate entries resolved by preference (common word > proper noun)
+- ✅ Full-hash note GUIDs (collision-safe at large deck sizes)
+- ✅ EPUB chapters in spine (reading) order; nav page no longer a chapter
+- ✅ CEDICT numbered pinyin converted to tone marks on cards
+- ✅ Wheel packaging ships translate/ and main.py
+- ✅ Explicit --config paths must exist (no silent fallback)
+
+**Features**
+- ✅ HSK level filtering (--hsk, HSK 3.0 lists auto-downloaded)
+- ✅ TTS word audio (--tts, gTTS, cached, bundled as .apkg media)
+- ✅ Stats export (--stats / stats_file)
+- ✅ Cloze deletion cards (--cloze)
+- ✅ PDF chapter detection (heading heuristics)
+- ✅ Chapter as a real Anki tag
+- ✅ Target word highlighted inline in the sentence
+
+**Performance & Quality**
+- ✅ Character-bigram sentence index (~10x faster example lookup)
+- ✅ Argos skips the network entirely when its model is cached
+- ✅ 223 tests, 85% coverage
 
 ### 2026-02-09: Translation & Quality Improvements
 
@@ -442,21 +476,17 @@ uv run python main.py \
 ## Translation Backend Selection
 
 ### Current Status (Python 3.13)
-- ✅ Argos Translate (Neural MT) - Active
+- ✅ NLLB-200 CT2 (Neural MT) - Active when the `nllb` extra is installed
+- ✅ Argos Translate (Neural MT) - Default active backend
 - ✅ CC-CEDICT (Fallback) - Available
-
-### Python 3.14+ Users
-- ⚠️  Argos Translate - Not compatible
-- ✅ CC-CEDICT (Fallback) - Automatic
 
 ### Production Recommendations
 
 **For Best Translation Quality**:
-- Use Python 3.12 or 3.13
-- Argos Translate provides neural MT
-- Translations are natural and grammatical
+- `uv sync --extra nllb` for NLLB-200 (quality 90)
+- Otherwise Argos Translate provides solid neural MT (quality 80)
 
 **For Maximum Compatibility**:
-- Any Python version works (3.9+)
+- Any supported Python version works (3.9-3.13)
 - CC-CEDICT fallback is reliable
 - Translations are acceptable for learning

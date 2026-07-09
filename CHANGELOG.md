@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.0] - 2026-07-09
+
+Full-repo audit release: every P0-P6 item in TODO.md addressed, one commit
+per fix/feature, with regression tests throughout (48 → 223 tests, 85%
+coverage).
+
+### Added
+
+- **HSK level filtering** (`--hsk` / `hsk_levels` config): HSK 3.0 word
+  lists auto-downloaded and cached; applied before top-N selection
+- **TTS word audio** (`--tts`): gTTS MP3s, cached by text hash, bundled
+  into the .apkg as media with `[sound:...]` fields
+- **Stats export** (`--stats` / `stats_file`): counts, skip reasons, token
+  coverage, active backend, and per-card word list as JSON
+- **Cloze deletion cards** (`--cloze` / `cloze` config) with their own
+  note type and GUID namespace
+- **PDF chapter detection**: heuristic splitting on 第X章/节/回 headings
+  with front-matter handling and single-chapter fallback
+- **Chapter Anki tags** (`chapter::<title>`) for per-chapter filtering
+- **Inline word highlighting**: the target word is highlighted inside the
+  example sentence (HTML-escaped), front shows just the sentence
+
+### Changed
+
+- EPUB chapters extracted in spine (reading) order; navigation documents
+  no longer appear as chapters
+- CC-CEDICT duplicate entries resolved by preference (common words over
+  proper nouns, then most definitions) instead of last-line-wins
+- Word pinyin from CC-CEDICT converted from numbered (`ni3 hao3`) to tone
+  marks (`nǐ hǎo`) to match sentence pinyin
+- Note GUIDs use the full 128-bit hash (were truncated to 32 bits, risking
+  silent overwrites on import; old decks re-import as new notes)
+- Example-sentence lookup uses a character-bigram index (~10x faster at
+  novel scale, byte-identical results)
+- Argos initialization checks for a cached model before touching the
+  network; cached/offline runs make no requests
+- An explicitly passed `--config` path that doesn't exist is now an error
+- Dev dependencies consolidated into the `dev` dependency group
+
+### Fixed
+
+- Page-number lines are actually removed now (line filtering ran after
+  newlines had been collapsed, so it never matched)
+- Neural backends raise on failure instead of returning the source text,
+  so the fallback chain engages and Chinese never appears as its own
+  "translation" (failures are also never cached)
+- Wheel packaging ships `translate/` and `main.py` (the installed
+  `anki-chinese` entry point previously crashed with ImportError)
+- `analyze_coverage.py` had unterminated string literals (didn't compile)
+  and crashed on Windows cp1252 consoles
+- Corrupted CC-CEDICT downloads raise actionable guidance instead of a raw
+  `BadGzipFile` traceback
+- `.gitignore` covers all of `data/` (NLLB model dir, TTS cache)
+- Removed dead code (`translate_with_context`, `get_full_text`)
+
 ## [0.2.0] - 2026-02-09
 
 ### Added

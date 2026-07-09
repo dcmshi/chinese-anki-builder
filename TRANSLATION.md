@@ -9,14 +9,37 @@ The Anki Chinese Deck Builder uses a **pluggable translation architecture** that
 ```
 translate/
 ├── base.py              # Abstract base class
-├── argos_backend.py     # Argos Translate (offline neural MT)
+├── nllb_backend.py      # NLLB-200 on CTranslate2 (opt-in, highest quality)
+├── argos_backend.py     # Argos Translate (offline neural MT, default)
 ├── cedict_backend.py    # CC-CEDICT word-by-word (fallback)
 └── manager.py           # Translation manager (orchestrator)
 ```
 
+**Failure semantics:** a backend that cannot translate raises; it never
+returns the source text. The manager catches the error, tries the next
+backend by quality score, and never caches failures — so a transient error
+can't poison cards with untranslated Chinese.
+
 ## Available Backends
 
-### 1. Argos Translate (Offline Neural MT) ⭐ Recommended
+### 0. NLLB-200 on CTranslate2 (Offline Neural MT) ⭐ Highest quality
+
+**Quality Score:** 90/100
+
+**Status:** Opt-in — install with `uv sync --extra nllb`
+
+**Pros:**
+- ✅ Best zh→en quality of the offline backends
+- ✅ Fully offline after the one-time model download (~1GB distilled-600M)
+- ✅ Runs on the same CTranslate2 engine Argos already uses (no PyTorch at inference)
+- ✅ Model/tokenizer overridable via config keys `nllb_model_repo` /
+  `nllb_tokenizer_repo` or env `NLLB_CT2_MODEL` / `NLLB_TOKENIZER`
+
+**Cons:**
+- ⚠️ Large first-run download
+- ⚠️ Heavier optional dependencies (transformers, huggingface_hub)
+
+### 1. Argos Translate (Offline Neural MT) — Default
 
 **Quality Score:** 80/100
 
@@ -234,7 +257,7 @@ uv sync
 
 ### Features
 
-- [ ] Translation caching (avoid re-translating same sentences)
+- [x] Translation caching (repeated sentences translate once per run)
 - [ ] Batch translation (translate multiple sentences at once)
 - [ ] Translation quality scoring
 - [ ] A/B testing between backends
@@ -253,6 +276,6 @@ To add a new backend:
 
 ---
 
-**Last Updated:** 2026-02-09
-**Python Compatibility:** 3.9+ (Argos requires 3.12-3.13)
-**Status:** Beta - Argos backend has Python version limitations
+**Last Updated:** 2026-07-09
+**Python Compatibility:** 3.9-3.13 (project caps requires-python below 3.14 for Argos)
+**Status:** Stable — NLLB (opt-in) > Argos (default) > CC-CEDICT (fallback)

@@ -109,21 +109,21 @@ Test suite status at time of audit: **48/48 passing**.
 
 ## P5 — Documentation drift
 
-- [ ] **Test counts stale everywhere**: CLAUDE.md, FEATURES.md, and
+- [x] **Test counts stale everywhere**: CLAUDE.md, FEATURES.md, and
   CHANGELOG say "24 tests / 52% coverage"; the suite is now **48 tests**
   (test_text_cleaner and test_nllb_backend aren't mentioned in the docs'
   test-module lists). Re-run coverage and refresh numbers.
-- [ ] **FEATURES.md translation section predates NLLB** — module structure
+- [x] **FEATURES.md translation section predates NLLB** — module structure
   omits `translate/nllb_backend.py`; backend list/quality table omits NLLB
   (90). Also says Argos is "Python 3.12–3.13 only" while code/pyproject
   support 3.9–3.13.
-- [ ] **Dependency lists are wrong** — README and FEATURES.md cite `PyPDF2`;
+- [x] **Dependency lists are wrong** — README and FEATURES.md cite `PyPDF2`;
   the project uses `pypdf`. FEATURES.md lists `argostranslate` as optional;
   it's a core dependency in pyproject.
-- [ ] **QUICKSTART.md says "Python 3.14.3"** — pyproject caps
+- [x] **QUICKSTART.md says "Python 3.14.3"** — pyproject caps
   `requires-python <3.14` and the venv runs 3.13.14; Argos doesn't work on
   3.14. Fix the claim.
-- [ ] **README card-format section** says front shows the sentence with the
+- [x] **README card-format section** says front shows the sentence with the
   word highlighted — align with reality once the P1 highlight item is done.
 
 ## P6 — Test coverage gaps
