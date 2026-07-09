@@ -27,6 +27,30 @@ GUID, cloze marker all confirmed).
 
 No further correctness, performance, or packaging issues found.
 
+## Third pass (2026-07-09, post-push)
+
+Deeper sweep after pushing: ruff over the whole tree, model/template
+cross-checks, and filename/ID edge cases.
+
+- [ ] **Cloze decks silently drop TTS audio** — the cloze model has no
+  Audio field, so `--tts --cloze` generates and bundles MP3s that no note
+  references (wasted downloads, orphaned media in the .apkg). Add an Audio
+  field + template block to the cloze model and populate it in
+  `create_cloze_note`.
+- [ ] **Deck ID is a 32-bit truncated hash** (`anki/deck_builder.py:237`) —
+  same birthday-collision class as the note-GUID bug: two deck names
+  hashing to the same ID are treated as the *same deck* by Anki. Widen to
+  the safe genanki/Anki range.
+- [ ] **Deck name is used unsanitized as the output filename** — `--deck
+  "A/B"` writes to a nested directory; `:` or `?` in a name crashes on
+  Windows. Sanitize the filename only (the deck keeps its display name).
+- [ ] **16 ruff findings** — 15 unused imports across 10 files plus one
+  E713 (`not x in` → `x not in`). Add a lint gate so the tree stays clean.
+- [ ] **Integration test for the full pipeline** (TESTING.md TODO) — EPUB →
+  .apkg end-to-end with a stubbed CEDICT, asserting on the built deck.
+- [ ] **Direct tests for `utils/chinese_utils.py`** (TESTING.md TODO) —
+  currently only covered indirectly.
+
 ## P0 — Bugs (broken or produces wrong output)
 
 - [x] **`analyze_coverage.py` does not compile** — `SyntaxError: unterminated
