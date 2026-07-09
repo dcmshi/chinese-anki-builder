@@ -5,7 +5,7 @@ Test suite status at time of audit: **48/48 passing**.
 
 ## P0 — Bugs (broken or produces wrong output)
 
-- [ ] **`analyze_coverage.py` does not compile** — `SyntaxError: unterminated
+- [x] **`analyze_coverage.py` does not compile** — `SyntaxError: unterminated
   string literal` at line 44 (`print('uv run python main.py \')` — the `\'`
   escapes the closing quote). Fix the escaping or delete the script; it's a
   one-off with hardcoded stats that duplicates FEATURES.md content.

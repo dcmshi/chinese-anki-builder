@@ -1,5 +1,11 @@
 """Quick analysis of word coverage for 三体."""
 
+import sys
+
+# Fix Windows console encoding for Chinese characters (same guard as main.py)
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # Stats from our runs:
 total_tokens = 457776
 unique_words = 30328
@@ -41,8 +47,8 @@ print("  - Focuses on frequently used vocabulary")
 print("  - Filters out most character names automatically")
 print("  - Still high coverage of actual text")
 print("\nCommand:")
-print('uv run python main.py \')
-print('  --input "San Ti Quan Ji  - Di Qiu Wang S - Liu Ci Xin.epub" \')
-print('  --deck "三体全集 - 90% Coverage" \')
-print('  --top-words 3000 \')
-print('  --min-freq 5')
+print("uv run python main.py \\")
+print('  --input "San Ti Quan Ji  - Di Qiu Wang S - Liu Ci Xin.epub" \\')
+print('  --deck "三体全集 - 90% Coverage" \\')
+print("  --top-words 3000 \\")
+print("  --min-freq 5")
