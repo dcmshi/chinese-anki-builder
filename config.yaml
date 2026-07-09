@@ -5,7 +5,8 @@ top_words: 150
 min_frequency: 2
 
 # HSK filtering (optional)
-# Uncomment to filter by HSK level
+# Uncomment to only include words from these HSK 3.0 levels (7 = 7-9 band).
+# Word lists download on first use and are cached under data/hsk/.
 # hsk_levels: [1, 2, 3, 4, 5]
 
 # TTS audio generation

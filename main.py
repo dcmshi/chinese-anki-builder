@@ -28,6 +28,7 @@ from process.text_cleaner import clean_text, split_sentences
 from process.tokenizer import tokenize_text, compute_word_frequency, filter_multi_char_words
 from process.cedict_loader import load_cedict
 from process.word_selector import select_top_words, create_word_cards
+from process.hsk_filter import filter_by_hsk, parse_hsk_levels
 from anki.deck_builder import build_deck
 from translate.manager import TranslationManager
 from utils.file_utils import write_stats_json
@@ -84,6 +85,7 @@ def process_pipeline(
     stats_file: str = None,
     cloze: bool = False,
     enable_tts: bool = False,
+    hsk_levels: List[int] = None,
     **kwargs,
 ):
     """
@@ -100,6 +102,7 @@ def process_pipeline(
         stats_file: Optional path to export pipeline stats as JSON
         cloze: Build cloze-deletion cards instead of word-in-sentence cards
         enable_tts: Generate word audio with gTTS (requires internet + tts extra)
+        hsk_levels: Only keep words from these HSK levels (empty/None = all words)
     """
     # Set deck name from filename if not provided
     if deck_name is None:
@@ -141,6 +144,16 @@ def process_pipeline(
     print("\nFiltering to multi-character words...")
     multi_char_freq = filter_multi_char_words(stats.word_freq)
     print(f"Multi-character words: {len(multi_char_freq)}")
+
+    # Step 5.5: HSK filtering (optional) -- restrict the candidate pool BEFORE
+    # top-N selection so the deck still gets the full requested word count.
+    if hsk_levels:
+        print(f"\nFiltering to HSK levels {hsk_levels}...")
+        candidates = filter_by_hsk(list(multi_char_freq.keys()), hsk_levels)
+        multi_char_freq = type(multi_char_freq)(
+            {word: multi_char_freq[word] for word in candidates}
+        )
+        print(f"Words within HSK levels: {len(multi_char_freq)}")
 
     # Step 6: Select top words
     print(f"\nSelecting top {top_words} words...")
@@ -292,6 +305,12 @@ def main():
     )
 
     parser.add_argument(
+        "--hsk",
+        default=None,
+        help="Only include HSK words: '3' (up to level 3), '2-4', or '1,3,5'; 7 = 7-9 band",
+    )
+
+    parser.add_argument(
         "--stats",
         default=None,
         help="Export pipeline stats to this JSON file (default: config stats_file)",
@@ -336,6 +355,9 @@ def main():
         "max_sentence_length": resolve(None, ["max_sentence_length"], 100),
         "stats_file": resolve(args.stats, ["stats_file"], None),
         "cloze": resolve(args.cloze, ["cloze"], False),
+        "hsk_levels": resolve(
+            parse_hsk_levels(args.hsk) if args.hsk else None, ["hsk_levels"], []
+        ),
     }
 
     try:
