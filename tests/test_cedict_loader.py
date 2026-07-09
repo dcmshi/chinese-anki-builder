@@ -1,7 +1,15 @@
 """Tests for CC-CEDICT loading and parsing."""
 
 import pytest
-from process.cedict_loader import parse_cedict_line, prefer_entry, load_cedict, DictEntry
+
+import process.cedict_loader as cedict_loader
+from process.cedict_loader import (
+    DictEntry,
+    download_cedict,
+    load_cedict,
+    parse_cedict_line,
+    prefer_entry,
+)
 
 
 class TestCEDICTLoader:
@@ -121,6 +129,27 @@ class TestCEDICTLoader:
         # The common-word sense wins even though the proper noun came last.
         assert cedict["东西"].pinyin == "dong1 xi5"
         assert cedict["东西"].get_first_definition() == "thing"
+
+    def test_corrupted_download_raises_friendly_error(self, tmp_path, monkeypatch):
+        """Regression: a truncated download crashed with a raw BadGzipFile
+        traceback instead of actionable guidance."""
+
+        class FakeResponse:
+            content = b"this is definitely not gzip data"
+
+            def raise_for_status(self):
+                pass
+
+        monkeypatch.setattr(cedict_loader, "get_data_dir", lambda: tmp_path)
+        monkeypatch.setattr(
+            cedict_loader.requests, "get", lambda *a, **kw: FakeResponse()
+        )
+
+        with pytest.raises(RuntimeError, match="corrupted"):
+            download_cedict(force=True)
+
+        # The bad payload must not be written to the cache.
+        assert not (tmp_path / "cedict.txt").exists()
 
     def test_dict_entry_repr(self):
         """Test DictEntry string representation."""

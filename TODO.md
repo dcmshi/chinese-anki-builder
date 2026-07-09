@@ -67,7 +67,7 @@ Test suite status at time of audit: **48/48 passing**.
   `data/cedict.txt(.gz)` is ignored; the NLLB model dir
   (`data/nllb_ct2_model/`, ~1GB) and `data/cache/` (TTS cache) are not.
   Consider ignoring `data/` wholesale.
-- [ ] **Uncaught `BadGzipFile` on corrupted CEDICT download** —
+- [x] **Uncaught `BadGzipFile` on corrupted CEDICT download** —
   `gzip.decompress` (`process/cedict_loader.py:61`) sits outside the
   try/except; a truncated download crashes with a raw traceback instead of the
   friendly retry message.

@@ -57,8 +57,15 @@ def download_cedict(force: bool = False) -> Path:
             f"Check your internet connection, or place a cedict.txt manually at {dict_path}."
         ) from e
 
-    # Decompress
-    decompressed_data = gzip.decompress(compressed_data)
+    # Decompress. A truncated/corrupted download raises BadGzipFile (an
+    # OSError); surface the same friendly guidance instead of a traceback.
+    try:
+        decompressed_data = gzip.decompress(compressed_data)
+    except OSError as e:
+        raise RuntimeError(
+            f"Downloaded CC-CEDICT from {CEDICT_URL} appears corrupted ({e}). "
+            f"Re-run to retry, or place a cedict.txt manually at {dict_path}."
+        ) from e
 
     # Write to file
     dict_path.write_bytes(decompressed_data)
