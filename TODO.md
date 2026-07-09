@@ -51,7 +51,7 @@ Test suite status at time of audit: **48/48 passing**.
 - [x] **EPUB chapters are read in manifest order, not spine (reading) order**
   (`extract/epub_extractor.py:34` uses `book.get_items()`). Chapter tags can
   be mis-ordered/mis-attributed. Iterate the spine instead.
-- [ ] **Word pinyin style is inconsistent with sentence pinyin** — CEDICT path
+- [x] **Word pinyin style is inconsistent with sentence pinyin** — CEDICT path
   returns numbered pinyin (`ni3 hao3`, `process/pinyin_converter.py:23`) while
   sentence pinyin uses tone marks via pypinyin. Convert CEDICT numbered pinyin
   to diacritics for display consistency.
