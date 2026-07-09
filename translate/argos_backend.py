@@ -35,39 +35,43 @@ class ArgosTranslateBackend(TranslationBackend):
 
             self.argos = argostranslate
 
-            # Update package index
-            print("Updating Argos Translate package index...")
-            argostranslate.package.update_package_index()
-
-            # Get available packages
-            available_packages = argostranslate.package.get_available_packages()
-
-            # Find Chinese -> English package
-            zh_en_package = None
-            for pkg in available_packages:
-                if pkg.from_code == "zh" and pkg.to_code == "en":
-                    zh_en_package = pkg
-                    break
-
-            if not zh_en_package:
-                print("Error: Chinese -> English package not found in Argos Translate")
-                return False
-
-            # Check if already installed
+            # Check for an installed zh->en model FIRST: updating the package
+            # index is a network call, and doing it unconditionally made every
+            # run (and offline runs with a cached model) depend on the network.
             installed_packages = argostranslate.package.get_installed_packages()
             already_installed = any(
                 pkg.from_code == "zh" and pkg.to_code == "en" for pkg in installed_packages
             )
 
-            if not already_installed:
+            if already_installed:
+                print("Using cached Argos Translate model")
+            else:
+                # Update package index (network) only when a download is needed
+                print("Updating Argos Translate package index...")
+                argostranslate.package.update_package_index()
+
+                available_packages = argostranslate.package.get_available_packages()
+
+                # Find Chinese -> English package
+                zh_en_package = next(
+                    (
+                        pkg
+                        for pkg in available_packages
+                        if pkg.from_code == "zh" and pkg.to_code == "en"
+                    ),
+                    None,
+                )
+
+                if not zh_en_package:
+                    print("Error: Chinese -> English package not found in Argos Translate")
+                    return False
+
                 print(f"Downloading Argos Translate model: {zh_en_package.package_version}")
                 print("This may take a few minutes on first run...")
                 argostranslate.package.install_from_path(
                     zh_en_package.download()
                 )
                 print("Model downloaded and installed successfully!")
-            else:
-                print("Using cached Argos Translate model")
 
             self.installed_languages = argostranslate.translate.get_installed_languages()
             self._initialized = True

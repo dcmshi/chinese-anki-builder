@@ -59,7 +59,7 @@ Test suite status at time of audit: **48/48 passing**.
   `load_config` (`main.py:34`) falls back to `./config.yaml` without a
   warning. Error (or at least warn) when an explicitly passed config path
   doesn't exist.
-- [ ] **Argos init hits the network every run** —
+- [x] **Argos init hits the network every run** —
   `update_package_index()` (`translate/argos_backend.py:40`) is called before
   checking whether the zh→en model is already installed. Check installed
   packages first so cached/offline runs don't depend on the exception path.
