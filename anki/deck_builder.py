@@ -1,6 +1,7 @@
 """Build Anki deck from word cards."""
 
 import genanki
+import html
 from typing import List, Dict
 from pathlib import Path
 import hashlib
@@ -30,6 +31,32 @@ def generate_note_guid(word: str, sentence: str) -> str:
     """
     content = f"{word}::{sentence}"
     return hashlib.md5(content.encode("utf-8")).hexdigest()
+
+
+def highlight_word_in_sentence(word: str, sentence: str) -> str:
+    """
+    Return sentence HTML with every occurrence of word wrapped in a
+    highlight span (styled by the card CSS).
+
+    Both strings are HTML-escaped first so stray <, >, & from extraction
+    can't break the card template.
+
+    Args:
+        word: The target word
+        sentence: The example sentence containing it
+
+    Returns:
+        HTML string for the Sentence field
+    """
+    escaped_sentence = html.escape(sentence)
+    escaped_word = html.escape(word)
+
+    if not escaped_word:
+        return escaped_sentence
+
+    return escaped_sentence.replace(
+        escaped_word, f'<span class="target">{escaped_word}</span>'
+    )
 
 
 def create_anki_note(
@@ -71,12 +98,13 @@ def create_anki_note(
     # For now, no audio
     audio = ""
 
-    # Create note with deterministic ID
+    # Create note with deterministic ID (GUID from the raw sentence so
+    # highlight markup changes don't orphan existing notes)
     note = genanki.Note(
         model=model,
         fields=[
             card.word,  # Word
-            card.sentence,  # Sentence
+            highlight_word_in_sentence(card.word, card.sentence),  # Sentence
             sentence_pinyin,  # SentencePinyin
             pinyin,  # Pinyin (word)
             definition,  # Definition

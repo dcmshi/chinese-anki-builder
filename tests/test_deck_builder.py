@@ -4,8 +4,8 @@ import pytest
 from collections import Counter
 from process.word_selector import WordCard
 from process.cedict_loader import DictEntry
-from anki.deck_builder import generate_note_guid, create_anki_note
-from anki.templates import get_chinese_model
+from anki.deck_builder import generate_note_guid, create_anki_note, highlight_word_in_sentence
+from anki.templates import get_chinese_model, FRONT_TEMPLATE, CARD_CSS
 
 
 class TestDeckBuilder:
@@ -56,7 +56,8 @@ class TestDeckBuilder:
         note = create_anki_note(card, cedict, model)
 
         assert note.fields[0] == "你好"  # Word
-        assert note.fields[1] == "你好世界"  # Sentence
+        # Sentence carries the inline highlight of the target word
+        assert note.fields[1] == '<span class="target">你好</span>世界'
         assert note.fields[3] == "nǐ hǎo"  # Pinyin (word)
         assert note.fields[4] == "hello"  # Definition (first one)
         assert note.fields[7] == "Chapter 1"  # Chapter
@@ -107,6 +108,27 @@ class TestDeckBuilder:
 
         # GUIDs should be the same for same card
         assert note1.guid == note2.guid
+
+    def test_highlight_wraps_all_occurrences(self):
+        result = highlight_word_in_sentence("学习", "学习使人进步，我爱学习。")
+        assert result.count('<span class="target">学习</span>') == 2
+
+    def test_highlight_escapes_html(self):
+        # Stray markup from extraction must not break the card template.
+        result = highlight_word_in_sentence("你好", "你好<b>世界</b> & 朋友")
+        assert "<b>" not in result
+        assert "&amp;" in result
+        assert '<span class="target">你好</span>' in result
+
+    def test_highlight_word_absent_leaves_sentence_alone(self):
+        assert highlight_word_in_sentence("学习", "你好世界") == "你好世界"
+
+    def test_front_template_highlights_word_in_sentence(self):
+        """Regression: the front used to show the word separately below the
+        sentence instead of highlighting it inside (as README promises)."""
+        assert "{{Sentence}}" in FRONT_TEMPLATE
+        assert "{{Word}}" not in FRONT_TEMPLATE  # answer side only
+        assert ".target" in CARD_CSS
 
     def test_chinese_model_structure(self):
         """Test that the Chinese model has correct structure."""

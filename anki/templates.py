@@ -5,10 +5,11 @@ import genanki
 # Model ID - use a random but fixed ID for consistency
 CHINESE_MODEL_ID = 1607392319
 
-# Card template
+# Card template. The Sentence field carries inline HTML highlighting of the
+# target word (see anki.deck_builder.highlight_word_in_sentence), so the front
+# is just the sentence -- word, pinyin, and meaning are revealed on the back.
 FRONT_TEMPLATE = """
 <div class="sentence">{{Sentence}}</div>
-<div class="word-highlight">{{Word}}</div>
 """
 
 BACK_TEMPLATE = """
@@ -67,6 +68,12 @@ CARD_CSS = """
     font-weight: bold;
     color: #ff6b6b;
     margin: 15px 0;
+}
+
+/* Target word highlighted inline within the example sentence */
+.target {
+    color: #ff6b6b;
+    font-weight: bold;
 }
 
 .pinyin {

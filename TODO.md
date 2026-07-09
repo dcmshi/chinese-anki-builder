@@ -43,7 +43,7 @@ Test suite status at time of audit: **48/48 passing**.
   silently overwrite each other on Anki import. Use the full hash string (or
   `genanki.guid_for`). Note: changing GUIDs breaks re-import dedup with
   existing decks — document that.
-- [ ] **Card front doesn't highlight the word *in* the sentence** — the
+- [x] **Card front doesn't highlight the word *in* the sentence** — the
   template (`anki/templates.py:9`) shows the sentence and then the word
   separately below it. README/CLAUDE.md promise "sentence with target word
   highlighted". Wrap occurrences of the word in a styled span when building
