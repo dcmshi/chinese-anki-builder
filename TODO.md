@@ -82,7 +82,7 @@ Test suite status at time of audit: **48/48 passing**.
   the flag print a clear "not implemented" notice.
 - [ ] **Stats export** — `stats_file` exists in `config.yaml:16` but nothing
   reads it; no `--stats` flag.
-- [ ] **PDF chapter detection** — whole PDF is one "PDF Book" chapter
+- [x] **PDF chapter detection** — whole PDF is one "PDF Book" chapter
   (`extract/pdf_extractor.py:33` TODO); FEATURES.md oversells this.
 - [ ] **Cloze deletion cards** — roadmap item, not started.
 - [x] **Chapter as real Anki tag** — chapter is only a note *field*;
