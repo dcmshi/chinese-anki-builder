@@ -60,11 +60,42 @@ def select_top_words(
     return top_words
 
 
+def build_sentence_index(sentences: List[str]) -> Dict[str, List[int]]:
+    """
+    Build an inverted index: character bigram -> indices of sentences
+    containing it.
+
+    Substring-scanning every sentence per word is O(words x sentences) --
+    the dominant cost for large decks. Every word (always 2+ chars here)
+    contains its own first bigram, so looking up word[:2] yields a superset
+    of the sentences containing the word; the exact `word in sentence` check
+    then filters it. Results are therefore IDENTICAL to a full scan, just
+    without scanning unrelated sentences. Indices stay in sentence order so
+    selection remains deterministic.
+
+    Args:
+        sentences: List of sentences to index
+
+    Returns:
+        Mapping of bigram -> list of sentence indices (in order)
+    """
+    index: Dict[str, List[int]] = {}
+    for i, sentence in enumerate(sentences):
+        seen = set()
+        for j in range(len(sentence) - 1):
+            bigram = sentence[j : j + 2]
+            if bigram not in seen:
+                seen.add(bigram)
+                index.setdefault(bigram, []).append(i)
+    return index
+
+
 def find_sentence_for_word(
     word: str,
     sentences: List[str],
     min_len: int = 10,
     max_len: int = 100,
+    candidates: Optional[List[str]] = None,
 ) -> Optional[str]:
     """
     Find a good example sentence containing the word.
@@ -76,28 +107,24 @@ def find_sentence_for_word(
         sentences: List of sentences to search
         min_len: Minimum acceptable sentence length
         max_len: Maximum acceptable sentence length
+        candidates: Optional prefiltered sentences (e.g. from
+            build_sentence_index) to search instead of scanning everything
 
     Returns:
         Best sentence containing the word, or None
     """
-    candidates = [sent for sent in sentences if word in sent]
+    pool = candidates if candidates is not None else sentences
+    matching = [sent for sent in pool if word in sent]
 
-    if not candidates:
+    if not matching:
         return None
 
     # Prefer shorter sentences (easier to understand)
     # But not too short (need context)
-    candidates = [sent for sent in candidates if min_len <= len(sent) <= max_len]
+    in_range = [sent for sent in matching if min_len <= len(sent) <= max_len]
 
-    if not candidates:
-        # Fallback to any sentence with the word
-        candidates = [sent for sent in sentences if word in sent]
-
-    if not candidates:
-        return None
-
-    # Return shortest suitable sentence
-    return min(candidates, key=len)
+    # Return shortest suitable sentence (fall back to any match)
+    return min(in_range or matching, key=len)
 
 
 def create_word_cards(
@@ -136,6 +163,10 @@ def create_word_cards(
     skipped_no_sentence = 0
     skipped_no_definition = 0
 
+    # One-time index so each word looks up its candidate sentences directly
+    # instead of substring-scanning every sentence (O(words x sentences)).
+    sentence_index = build_sentence_index(sentences)
+
     # Progress bar for word card creation
     for word in tqdm(words, desc="Creating cards", unit="word"):
         # Check if word has a definition in CEDICT (skip proper nouns, names, etc.)
@@ -143,8 +174,16 @@ def create_word_cards(
             skipped_no_definition += 1
             continue
 
+        if len(word) >= 2:
+            candidates = [sentences[i] for i in sentence_index.get(word[:2], [])]
+        else:
+            candidates = None  # single-char word: bigram index can't answer
         sentence = find_sentence_for_word(
-            word, sentences, min_len=min_sentence_length, max_len=max_sentence_length
+            word,
+            sentences,
+            min_len=min_sentence_length,
+            max_len=max_sentence_length,
+            candidates=candidates,
         )
 
         if sentence:

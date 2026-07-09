@@ -3,6 +3,7 @@
 import pytest
 from collections import Counter
 from process.word_selector import (
+    build_sentence_index,
     select_top_words,
     find_sentence_for_word,
     create_word_cards,
@@ -123,6 +124,53 @@ class TestWordSelector:
         # Only "你好" should have a card
         assert len(cards) == 1
         assert cards[0].word == "你好"
+
+    def test_build_sentence_index_maps_bigrams_to_sentences(self):
+        sentences = ["我在学习中文。", "他喜欢学习。", "你好世界。"]
+
+        index = build_sentence_index(sentences)
+
+        assert index["学习"] == [0, 1]
+        assert index["你好"] == [2]
+        # Bigrams spanning word boundaries are indexed too (习中 from 学习中文)
+        assert index["习中"] == [0]
+
+    def test_find_sentence_with_candidates_matches_full_scan(self):
+        """The indexed path must return the same sentence the exhaustive
+        substring scan would."""
+        sentences = [
+            "他每天都在图书馆学习到深夜。",
+            "我们一起学习中文很开心。",
+            "学习使人进步。",  # too short (< 10), in-range preferred
+        ]
+        index = build_sentence_index(sentences)
+        candidates = [sentences[i] for i in index.get("学习", [])]
+
+        via_index = find_sentence_for_word("学习", sentences, candidates=candidates)
+        via_scan = find_sentence_for_word("学习", sentences)
+
+        assert via_index == via_scan
+
+    def test_substring_occurrences_still_found_via_index(self):
+        """The bigram index must preserve exact substring semantics: a word
+        embedded mid-sentence (regardless of tokenization) is still found."""
+        words = ["你好"]
+        sentences = ["这是一个包含你好字样的长句子。"]
+        word_freq = Counter({"你好": 3})
+
+        cards = create_word_cards(words, sentences, word_freq, cedict=None)
+
+        assert len(cards) == 1
+        assert "你好" in cards[0].sentence
+
+    def test_absent_word_yields_no_card_via_index(self):
+        words = ["宇宙"]
+        sentences = ["这个句子里没有那个词汇存在。"]
+        word_freq = Counter({"宇宙": 2})
+
+        cards = create_word_cards(words, sentences, word_freq, cedict=None)
+
+        assert cards == []
 
     def test_create_word_cards_fills_stats_out(self):
         """Skip counts are exposed for stats export, not just printed."""

@@ -91,7 +91,7 @@ Test suite status at time of audit: **48/48 passing**.
 
 ## P3 — Performance
 
-- [ ] **`find_sentence_for_word` is O(words × sentences) substring scans**
+- [x] **`find_sentence_for_word` is O(words × sentences) substring scans**
   (`process/word_selector.py:82`), and its fallback re-scans all sentences
   (line 93). For 3000 words × 20k+ sentences this dominates runtime alongside
   translation. Build an inverted index (word → candidate sentences) once.
