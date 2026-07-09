@@ -49,15 +49,13 @@ def clean_text(text: str) -> str:
 
     Returns:
         Cleaned text with normalized whitespace
+
+    Line-based artifacts (page numbers) must be dropped BEFORE whitespace is
+    collapsed: normalize_whitespace() flattens newlines, so filtering lines
+    after it sees the whole text as one line and never matches anything.
     """
-    # Remove excessive whitespace
-    text = normalize_whitespace(text)
-
-    # Remove page numbers and common artifacts
-    lines = text.split("\n")
     cleaned_lines = []
-
-    for line in lines:
+    for line in text.split("\n"):
         line = line.strip()
 
         # Skip empty lines
@@ -70,7 +68,9 @@ def clean_text(text: str) -> str:
 
         cleaned_lines.append(line)
 
-    return "\n".join(cleaned_lines)
+    # Collapse remaining whitespace (including the line joins) to single
+    # spaces so hard-wrapped lines don't leave breaks mid-sentence.
+    return normalize_whitespace(" ".join(cleaned_lines))
 
 
 def split_sentences(text: str, min_chinese_chars: int = 2) -> list[str]:

@@ -9,7 +9,7 @@ Test suite status at time of audit: **48/48 passing**.
   string literal` at line 44 (`print('uv run python main.py \')` — the `\'`
   escapes the closing quote). Fix the escaping or delete the script; it's a
   one-off with hardcoded stats that duplicates FEATURES.md content.
-- [ ] **Page-number removal in `clean_text` is dead code** —
+- [x] **Page-number removal in `clean_text` is dead code** —
   `normalize_whitespace()` (`utils/chinese_utils.py:24`) collapses **all**
   whitespace including newlines before `clean_text`
   (`process/text_cleaner.py:57`) tries to split on `"\n"` and drop digit-only

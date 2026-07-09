@@ -107,9 +107,25 @@ class TestCleanText:
         assert clean_text("你好   世界\n\n这是   测试") == "你好 世界 这是 测试"
 
     def test_drops_page_number_lines(self):
-        # normalize_whitespace flattens newlines, so a lone page number embedded
-        # in running text survives; a standalone digit line is what we drop.
         assert clean_text("123") == ""
+
+    def test_drops_page_number_lines_between_text(self):
+        # Regression: digit-only lines used to survive because whitespace was
+        # collapsed (destroying line structure) before line filtering ran.
+        result = clean_text("第一段结束。\n42\n第二段开始。")
+        assert "42" not in result
+        assert result == "第一段结束。 第二段开始。"
+
+    def test_page_number_with_surrounding_spaces_dropped(self):
+        result = clean_text("正文内容。\n  307  \n更多内容。")
+        assert "307" not in result
+
+    def test_digits_inside_running_text_survive(self):
+        # Only digit-ONLY lines are page numbers; numbers in prose stay.
+        result = clean_text("价格是1.5万元。\n15\n他买了3本书。")
+        assert "1.5万元" in result
+        assert "3本书" in result
+        assert " 15 " not in f" {result} "
 
     def test_empty_input(self):
         assert clean_text("") == ""
