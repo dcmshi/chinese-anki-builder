@@ -83,6 +83,22 @@ def cloze_sentence(word: str, sentence: str) -> str:
     return escaped_sentence.replace(escaped_word, "{{c1::" + escaped_word + "}}")
 
 
+def generate_deck_id(deck_name: str) -> int:
+    """
+    Deterministic deck ID from name. 15 hex chars = 60 bits: within Anki's
+    signed-int64 range but wide enough that two deck names colliding (and
+    thus being treated as the SAME deck by Anki) is no longer a realistic
+    birthday risk, unlike the earlier 32-bit truncation.
+
+    Args:
+        deck_name: Name of the deck
+
+    Returns:
+        Integer deck ID
+    """
+    return int(hashlib.md5(deck_name.encode("utf-8")).hexdigest()[:15], 16)
+
+
 def chapter_to_tag(chapter: str) -> str:
     """
     Turn a chapter title into a valid Anki tag.
@@ -236,11 +252,8 @@ def build_deck(
     Returns:
         Path to the created .apkg file
     """
-    # Generate deterministic deck ID from name
-    deck_id = int(hashlib.md5(deck_name.encode("utf-8")).hexdigest()[:8], 16)
-
-    # Create deck
-    deck = genanki.Deck(deck_id, deck_name)
+    # Create deck with a deterministic ID
+    deck = genanki.Deck(generate_deck_id(deck_name), deck_name)
 
     # Get model
     model = get_chinese_cloze_model() if cloze else get_chinese_model()

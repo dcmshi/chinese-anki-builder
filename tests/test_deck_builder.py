@@ -5,6 +5,7 @@ from process.cedict_loader import DictEntry
 from anki.deck_builder import (
     chapter_to_tag,
     create_anki_note,
+    generate_deck_id,
     generate_note_guid,
     highlight_word_in_sentence,
 )
@@ -41,6 +42,18 @@ class TestDeckBuilder:
         assert guid1 != guid2
         assert guid1 != guid3
         assert guid2 != guid3
+
+    def test_deck_id_deterministic_and_wide(self):
+        """Regression: deck IDs were md5 truncated to 32 bits -- colliding
+        deck names would be treated as the SAME deck by Anki. Now 60 bits,
+        still inside Anki's signed-int64 range."""
+        id1 = generate_deck_id("三体全集")
+        id2 = generate_deck_id("三体全集")
+
+        assert id1 == id2
+        assert id1 > 2**32  # wider than the old truncation
+        assert id1 < 2**63  # valid Anki deck ID
+        assert generate_deck_id("其他牌组") != id1
 
     def test_create_anki_note_with_definition(self):
         """Test creating an Anki note with a valid definition."""

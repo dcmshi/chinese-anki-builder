@@ -37,7 +37,7 @@ cross-checks, and filename/ID edge cases.
   references (wasted downloads, orphaned media in the .apkg). Add an Audio
   field + template block to the cloze model and populate it in
   `create_cloze_note`.
-- [ ] **Deck ID is a 32-bit truncated hash** (`anki/deck_builder.py:237`) —
+- [x] **Deck ID is a 32-bit truncated hash** (`anki/deck_builder.py:237`) —
   same birthday-collision class as the note-GUID bug: two deck names
   hashing to the same ID are treated as the *same deck* by Anki. Widen to
   the safe genanki/Anki range.
