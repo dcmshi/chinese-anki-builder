@@ -352,29 +352,32 @@ def main():
 
     args = parser.parse_args()
 
-    # Load config and resolve settings with precedence: CLI > config.yaml > default
-    config = load_config(args.config)
-
-    def resolve(cli_value, config_keys, default):
-        return resolve_setting(cli_value, config, config_keys, default)
-
-    params = {
-        "input_path": args.input,
-        "deck_name": resolve(args.deck, ["deck_name"], None),
-        "top_words": resolve(args.top_words, ["top_words"], 150),
-        "min_freq": resolve(args.min_freq, ["min_freq", "min_frequency"], 2),
-        "output_dir": resolve(args.output, ["output_dir"], "output"),
-        "enable_tts": resolve(args.tts, ["enable_tts"], False),
-        "min_sentence_length": resolve(None, ["min_sentence_length"], 10),
-        "max_sentence_length": resolve(None, ["max_sentence_length"], 100),
-        "stats_file": resolve(args.stats, ["stats_file"], None),
-        "cloze": resolve(args.cloze, ["cloze"], False),
-        "hsk_levels": resolve(
-            parse_hsk_levels(args.hsk) if args.hsk else None, ["hsk_levels"], []
-        ),
-    }
-
+    # Everything from config loading onward sits inside the error handler so
+    # user-input problems (missing --config file, bad --hsk spec) print a
+    # friendly ERROR line instead of a traceback.
     try:
+        # Resolve settings with precedence: CLI > config.yaml > default
+        config = load_config(args.config)
+
+        def resolve(cli_value, config_keys, default):
+            return resolve_setting(cli_value, config, config_keys, default)
+
+        params = {
+            "input_path": args.input,
+            "deck_name": resolve(args.deck, ["deck_name"], None),
+            "top_words": resolve(args.top_words, ["top_words"], 150),
+            "min_freq": resolve(args.min_freq, ["min_freq", "min_frequency"], 2),
+            "output_dir": resolve(args.output, ["output_dir"], "output"),
+            "enable_tts": resolve(args.tts, ["enable_tts"], False),
+            "min_sentence_length": resolve(None, ["min_sentence_length"], 10),
+            "max_sentence_length": resolve(None, ["max_sentence_length"], 100),
+            "stats_file": resolve(args.stats, ["stats_file"], None),
+            "cloze": resolve(args.cloze, ["cloze"], False),
+            "hsk_levels": resolve(
+                parse_hsk_levels(args.hsk) if args.hsk else None, ["hsk_levels"], []
+            ),
+        }
+
         process_pipeline(**params)
     except Exception as e:
         print(f"\nERROR: {e}", file=sys.stderr)

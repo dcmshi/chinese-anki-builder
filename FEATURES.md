@@ -286,7 +286,7 @@ uv run pytest tests/ --cov=. --cov-report=term-missing
 - No context-aware grammar transformations
 - Particles removed (may lose nuance)
 - Approximation for understanding, not literary translation
-- *Mitigation*: Use Argos Translate (Python 3.12-3.13) for neural MT
+- *Mitigation*: Use a neural MT backend — Argos (default) or NLLB-200 (`uv sync --extra nllb`)
 
 ### Dictionary Coverage
 
@@ -432,7 +432,7 @@ Generated card fields (genanki model):
 - **Pinyin**: Word-level pinyin with tone marks
 - **Definition**: English definition from CC-CEDICT
 - **SentenceTranslation**: Word-by-word or neural MT
-- **Audio**: Placeholder (empty for now, future TTS)
+- **Audio**: `[sound:...]` reference to bundled gTTS word audio (empty unless `--tts`)
 - **Chapter**: Chapter name from book structure
 
 ## Example Workflows

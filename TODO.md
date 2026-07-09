@@ -3,6 +3,30 @@
 Findings from a full audit of source, tests, packaging, and docs.
 Test suite status at time of audit: **48/48 passing**.
 
+> **Status: all items complete.** Every P0–P6 item below was fixed in its own
+> commit with regression tests where feasible; docs were refreshed in a
+> consolidated 0.3.0 commit. Suite grew from 48 to 225 tests (86% coverage).
+
+## Re-audit (2026-07-09, post-fix)
+
+A second full pass after all fixes landed. Verified end-to-end by building
+real decks from a generated EPUB and inspecting the .apkg SQLite contents
+(highlight span, tone-mark pinyin, neural translation, chapter tag, 32-char
+GUID, cloze marker all confirmed).
+
+- [x] **CLI input errors dumped raw tracebacks** — `load_config()` and
+  `parse_hsk_levels()` ran outside `main()`'s try/except, so a missing
+  `--config` file or bad `--hsk` spec bypassed the friendly `ERROR:` line.
+  Moved settings resolution inside the handler; regression tests drive
+  `main()` with bad args and assert no traceback reaches stderr.
+- [x] **Leftover doc drift** — FEATURES.md still called the Audio field a
+  placeholder and cited Argos as "Python 3.12-3.13"; TRANSLATION.md had the
+  same stale range. (CHANGELOG 0.1/0.2 entries left as-is: historical.)
+- [x] **Vestigial `include_audio` parameter** removed from deck building
+  (audio is driven by `card.audio_filename` since the TTS feature landed).
+
+No further correctness, performance, or packaging issues found.
+
 ## P0 — Bugs (broken or produces wrong output)
 
 - [x] **`analyze_coverage.py` does not compile** — `SyntaxError: unterminated

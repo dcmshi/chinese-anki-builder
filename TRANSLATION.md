@@ -52,7 +52,7 @@ can't poison cards with untranslated Chinese.
 - ✅ Contextual understanding
 
 **Cons:**
-- ⚠️ Requires Python 3.12 or 3.13 (not compatible with 3.14+)
+- ⚠️ Requires Python 3.9-3.13 (not compatible with 3.14+; the project caps requires-python accordingly)
 - ⚠️ Large dependencies (~150MB with PyTorch)
 - ⚠️ Slower than word-by-word
 

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from main import load_config, resolve_setting
+from main import load_config, main, resolve_setting
 from utils.file_utils import write_stats_json
 
 
@@ -28,6 +28,30 @@ class TestLoadConfig:
         cfg.write_text("", encoding="utf-8")
 
         assert load_config(str(cfg)) == {}
+
+
+class TestCliErrorHandling:
+    """Regression: user-input errors (bad --config path, bad --hsk spec)
+    used to escape main()'s error handler and dump raw tracebacks."""
+
+    def _run_cli(self, monkeypatch, capsys, argv):
+        monkeypatch.setattr("sys.argv", ["main.py"] + argv)
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 1
+        return capsys.readouterr().err
+
+    def test_missing_config_prints_error_not_traceback(self, monkeypatch, capsys):
+        err = self._run_cli(
+            monkeypatch, capsys, ["--input", "x.epub", "--config", "nope.yaml"]
+        )
+        assert "ERROR: Config file not found" in err
+        assert "Traceback" not in err
+
+    def test_bad_hsk_spec_prints_error_not_traceback(self, monkeypatch, capsys):
+        err = self._run_cli(monkeypatch, capsys, ["--input", "x.epub", "--hsk", "abc"])
+        assert "ERROR: Invalid HSK level spec" in err
+        assert "Traceback" not in err
 
 
 class TestResolveSetting:
