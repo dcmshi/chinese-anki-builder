@@ -116,14 +116,41 @@ def parse_cedict_line(line: str) -> Optional[DictEntry]:
         return None
 
 
-def load_cedict() -> Dict[str, DictEntry]:
+def _is_proper_noun(entry: DictEntry) -> bool:
+    """CC-CEDICT capitalizes the pinyin of proper nouns (Dong1 hai3 etc.)."""
+    return bool(entry.pinyin) and entry.pinyin[0].isupper()
+
+
+def prefer_entry(existing: DictEntry, new: DictEntry) -> DictEntry:
+    """
+    Pick which of two entries for the same simplified form to keep.
+
+    CC-CEDICT has multiple entries for many words (different pronunciations,
+    proper-noun senses). Blindly keeping the last line gives learners
+    arbitrary readings, e.g. 东西 dong1 xi1 "east and west" instead of
+    dong1 xi5 "thing". Heuristics: prefer common words over proper nouns,
+    then the entry with more definitions (usually the dominant sense).
+    """
+    if _is_proper_noun(existing) != _is_proper_noun(new):
+        return existing if _is_proper_noun(new) else new
+    if len(new.definitions) > len(existing.definitions):
+        return new
+    return existing
+
+
+def load_cedict(dict_path: Optional[Path] = None) -> Dict[str, DictEntry]:
     """
     Load CC-CEDICT into a dictionary.
+
+    Args:
+        dict_path: Optional path to an existing CC-CEDICT file. Defaults to
+            the cached copy, downloading it first if missing.
 
     Returns:
         Dictionary mapping simplified Chinese words to DictEntry objects
     """
-    dict_path = download_cedict()
+    if dict_path is None:
+        dict_path = download_cedict()
 
     print("Parsing CC-CEDICT...")
     cedict = {}
@@ -132,8 +159,13 @@ def load_cedict() -> Dict[str, DictEntry]:
         for line in f:
             entry = parse_cedict_line(line)
             if entry:
-                # Use simplified as key
-                cedict[entry.simplified] = entry
+                # Use simplified as key; resolve duplicates by preference,
+                # not file order.
+                key = entry.simplified
+                if key in cedict:
+                    cedict[key] = prefer_entry(cedict[key], entry)
+                else:
+                    cedict[key] = entry
 
     print(f"Loaded {len(cedict)} dictionary entries")
     return cedict

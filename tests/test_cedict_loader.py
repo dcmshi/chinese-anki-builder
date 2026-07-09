@@ -1,7 +1,7 @@
 """Tests for CC-CEDICT loading and parsing."""
 
 import pytest
-from process.cedict_loader import parse_cedict_line, DictEntry
+from process.cedict_loader import parse_cedict_line, prefer_entry, load_cedict, DictEntry
 
 
 class TestCEDICTLoader:
@@ -82,6 +82,45 @@ class TestCEDICTLoader:
         )
 
         assert entry.get_first_definition() == ""
+
+    def test_prefer_common_word_over_proper_noun(self):
+        # Regression: last-entry-wins used to hand learners arbitrary
+        # (often proper-noun) readings for words with multiple entries.
+        common = DictEntry("東西", "东西", "dong1 xi5", ["thing", "stuff"])
+        proper = DictEntry("東西", "东西", "Dong1 Xi1", ["East and West"])
+
+        assert prefer_entry(common, proper) is common
+        assert prefer_entry(proper, common) is common
+
+    def test_prefer_entry_with_more_definitions(self):
+        sparse = DictEntry("行", "行", "hang2", ["row"])
+        rich = DictEntry("行", "行", "xing2", ["to walk", "to go", "capable", "OK"])
+
+        assert prefer_entry(sparse, rich) is rich
+        assert prefer_entry(rich, sparse) is rich
+
+    def test_prefer_entry_tie_keeps_first(self):
+        first = DictEntry("大意", "大意", "da4 yi4", ["general idea", "gist"])
+        second = DictEntry("大意", "大意", "da4 yi5", ["careless", "negligent"])
+
+        assert prefer_entry(first, second) is first
+
+    def test_load_cedict_resolves_duplicates_by_preference(self, tmp_path):
+        dict_file = tmp_path / "cedict.txt"
+        dict_file.write_text(
+            "# CC-CEDICT test fixture\n"
+            "東西 东西 [dong1 xi5] /thing/stuff/person/\n"
+            "東西 东西 [Dong1 Xi1] /East and West/\n"
+            "你好 你好 [ni3 hao3] /hello/hi/\n",
+            encoding="utf-8",
+        )
+
+        cedict = load_cedict(dict_path=dict_file)
+
+        assert len(cedict) == 2
+        # The common-word sense wins even though the proper noun came last.
+        assert cedict["东西"].pinyin == "dong1 xi5"
+        assert cedict["东西"].get_first_definition() == "thing"
 
     def test_dict_entry_repr(self):
         """Test DictEntry string representation."""

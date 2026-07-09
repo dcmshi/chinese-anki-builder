@@ -33,7 +33,7 @@ Test suite status at time of audit: **48/48 passing**.
 
 ## P1 — Correctness / quality issues
 
-- [ ] **CEDICT loader keeps only the last entry per simplified form**
+- [x] **CEDICT loader keeps only the last entry per simplified form**
   (`process/cedict_loader.py:136`). Words with multiple entries (的, 地, 了,
   行, …) get an arbitrary pronunciation/definition — often a proper noun or
   rare reading. Store all entries per key and pick sensibly (e.g., prefer
