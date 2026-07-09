@@ -1,6 +1,5 @@
 """Tests for EPUB extraction, built on real EPUB files written to disk."""
 
-import pytest
 from ebooklib import epub
 
 from extract.epub_extractor import extract_text_from_epub

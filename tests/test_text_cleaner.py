@@ -5,7 +5,6 @@ orphaned leading punctuation, balanced-quote preservation, etc.) that would
 have caught the dialogue-quote-orphaning bug.
 """
 
-import pytest
 
 from process.text_cleaner import clean_text, split_sentences
 

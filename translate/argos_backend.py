@@ -1,6 +1,5 @@
 """Argos Translate backend - offline neural machine translation."""
 
-import os
 from typing import Optional, Dict, Any
 from translate.base import TranslationBackend
 
@@ -88,7 +87,7 @@ class ArgosTranslateBackend(TranslationBackend):
     def is_available(self) -> bool:
         """Check if Argos Translate is available."""
         try:
-            import argostranslate
+            import argostranslate  # noqa: F401 -- availability probe only
             return True
         except ImportError:
             return False

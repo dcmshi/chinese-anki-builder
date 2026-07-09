@@ -3,7 +3,7 @@
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
-from typing import List, Dict
+from typing import List
 
 
 class Chapter:

@@ -7,7 +7,6 @@ from tts.gtts_generator import (
     generate_audio,
     get_audio_filename,
     get_or_create_audio,
-    is_available,
 )
 from anki.deck_builder import create_anki_note
 from anki.templates import get_chinese_model

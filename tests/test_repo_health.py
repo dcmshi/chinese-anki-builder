@@ -6,6 +6,8 @@ shipped with an unterminated string literal).
 """
 
 import py_compile
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -29,6 +31,18 @@ def _all_python_files():
 def test_python_file_compiles(path):
     """Every first-party Python file must at least be syntactically valid."""
     py_compile.compile(str(path), doraise=True)
+
+
+def test_ruff_lint_clean():
+    """Lint gate: the tree must stay ruff-clean (the third-pass audit found
+    15 unused imports that had accumulated silently)."""
+    pytest.importorskip("ruff")
+    result = subprocess.run(
+        [sys.executable, "-m", "ruff", "check", str(REPO_ROOT)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"ruff findings:\n{result.stdout}"
 
 
 def test_wheel_config_ships_all_first_party_code():

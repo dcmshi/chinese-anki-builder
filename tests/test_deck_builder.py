@@ -1,7 +1,5 @@
 """Tests for Anki deck building."""
 
-import pytest
-from collections import Counter
 from process.word_selector import WordCard
 from process.cedict_loader import DictEntry
 from anki.deck_builder import (

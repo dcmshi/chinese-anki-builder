@@ -1,6 +1,5 @@
 """Tests for CEDICT word-by-word translation and its backend wrapper."""
 
-import pytest
 
 from process.cedict_loader import DictEntry
 from process.sentence_translator import improve_translation, translate_sentence

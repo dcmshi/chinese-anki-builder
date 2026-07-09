@@ -2,7 +2,7 @@
 
 import jieba
 from collections import Counter
-from typing import List, Dict
+from typing import List
 from utils.chinese_utils import is_multi_char_word, contains_chinese
 
 

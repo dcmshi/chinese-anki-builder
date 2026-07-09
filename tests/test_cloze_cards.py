@@ -1,7 +1,6 @@
 """Tests for cloze-deletion card generation."""
 
 import genanki
-import pytest
 
 from anki.deck_builder import (
     build_deck,

@@ -1,6 +1,5 @@
 """Tests for word selection and card creation."""
 
-import pytest
 from collections import Counter
 from process.word_selector import (
     build_sentence_index,

@@ -1,6 +1,6 @@
 """Translate Chinese sentences using CC-CEDICT word-by-word translation."""
 
-from typing import Dict, List
+from typing import Dict
 from process.cedict_loader import DictEntry
 from process.tokenizer import tokenize_text
 
@@ -118,7 +118,7 @@ def improve_translation(translation: str) -> str:
         result = result[0].upper() + result[1:]
 
     # Ensure proper punctuation at end
-    if result and not result[-1] in '.!?。！？':
+    if result and result[-1] not in '.!?。！？':
         result += "."
 
     return result

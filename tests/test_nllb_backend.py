@@ -5,7 +5,6 @@ heavy optional dependencies. They verify wiring, config resolution, language
 code mapping, and graceful behavior when deps/models are absent.
 """
 
-import pytest
 
 from translate.nllb_backend import NLLBTranslateBackend, NLLB_LANG_CODES
 from translate.manager import TranslationManager
