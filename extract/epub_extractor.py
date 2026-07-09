@@ -78,8 +78,3 @@ def extract_text_from_epub(epub_path: str) -> List[Chapter]:
         chapters.append(Chapter(title="Book", text=""))
 
     return chapters
-
-
-def get_full_text(chapters: List[Chapter]) -> str:
-    """Combine all chapter texts into a single string."""
-    return "\n\n".join(chapter.text for chapter in chapters)

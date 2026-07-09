@@ -98,10 +98,10 @@ Test suite status at time of audit: **48/48 passing**.
 
 ## P4 — Dead code / cleanup
 
-- [ ] Remove unused `translate_with_context`
+- [x] Remove unused `translate_with_context`
   (`process/sentence_translator.py:127`) — its "context" logic is a no-op
   `pass` anyway.
-- [ ] Remove unused `get_full_text` (`extract/epub_extractor.py:63`).
+- [x] Remove unused `get_full_text` (`extract/epub_extractor.py:63`).
 - [ ] Consolidate duplicated dev dependencies — both
   `[project.optional-dependencies].dev` (pytest>=7.4.0, black, ruff) and
   `[dependency-groups].dev` (pytest>=8.4.2, pytest-cov) exist in

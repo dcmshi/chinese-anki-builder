@@ -122,32 +122,3 @@ def improve_translation(translation: str) -> str:
         result += "."
 
     return result
-
-
-def translate_with_context(
-    sentence: str,
-    target_word: str,
-    cedict: Dict[str, DictEntry],
-) -> str:
-    """
-    Translate sentence with emphasis on the target word's meaning.
-
-    Args:
-        sentence: Chinese sentence
-        target_word: The word being studied
-        cedict: CC-CEDICT dictionary
-
-    Returns:
-        English translation with target word emphasized
-    """
-    translation = translate_sentence(sentence, cedict)
-    translation = improve_translation(translation)
-
-    # Get target word's definition for context
-    if target_word in cedict:
-        word_def = cedict[target_word].get_first_definition()
-        # We could add markers here if needed
-        # For now, just return the translation
-        pass
-
-    return translation
