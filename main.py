@@ -54,6 +54,27 @@ def load_config(config_path: str = None) -> dict:
     return {}
 
 
+def resolve_setting(cli_value, config: dict, config_keys: List[str], default):
+    """
+    Resolve one setting with precedence: CLI > config.yaml > built-in default.
+
+    Args:
+        cli_value: Value from the CLI (None means the flag wasn't passed)
+        config: Loaded config dictionary
+        config_keys: Config keys to try in order (first present wins)
+        default: Built-in default
+
+    Returns:
+        The effective setting value
+    """
+    if cli_value is not None:
+        return cli_value
+    for key in config_keys:
+        if config.get(key) is not None:
+            return config[key]
+    return default
+
+
 def extract_book(input_path: str):
     """Extract text from EPUB or PDF."""
     path = Path(input_path)
@@ -336,13 +357,7 @@ def main():
     config = load_config(args.config)
 
     def resolve(cli_value, config_keys, default):
-        """Pick the CLI value, else the first present config key, else default."""
-        if cli_value is not None:
-            return cli_value
-        for key in config_keys:
-            if config.get(key) is not None:
-                return config[key]
-        return default
+        return resolve_setting(cli_value, config, config_keys, default)
 
     params = {
         "input_path": args.input,

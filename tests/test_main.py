@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from main import load_config
+from main import load_config, resolve_setting
 from utils.file_utils import write_stats_json
 
 
@@ -28,6 +28,30 @@ class TestLoadConfig:
         cfg.write_text("", encoding="utf-8")
 
         assert load_config(str(cfg)) == {}
+
+
+class TestResolveSetting:
+    """CLI > config.yaml > built-in default."""
+
+    def test_cli_value_wins(self):
+        assert resolve_setting(300, {"top_words": 150}, ["top_words"], 50) == 300
+
+    def test_config_used_when_cli_absent(self):
+        assert resolve_setting(None, {"top_words": 150}, ["top_words"], 50) == 150
+
+    def test_default_when_neither_set(self):
+        assert resolve_setting(None, {}, ["top_words"], 50) == 50
+
+    def test_first_present_config_key_wins(self):
+        config = {"min_frequency": 5}  # legacy key name
+        assert resolve_setting(None, config, ["min_freq", "min_frequency"], 2) == 5
+
+    def test_explicit_none_config_value_is_skipped(self):
+        assert resolve_setting(None, {"stats_file": None}, ["stats_file"], "x") == "x"
+
+    def test_false_cli_value_is_respected(self):
+        # False is a real value (e.g. a negated flag), not "absent".
+        assert resolve_setting(False, {"cloze": True}, ["cloze"], True) is False
 
 
 class TestStatsExport:

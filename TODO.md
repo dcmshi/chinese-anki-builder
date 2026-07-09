@@ -128,7 +128,7 @@ Test suite status at time of audit: **48/48 passing**.
 
 ## P6 — Test coverage gaps
 
-- [ ] No tests for: EPUB/PDF extractors, `tokenizer.py`,
+- [x] No tests for: EPUB/PDF extractors, `tokenizer.py`,
   `pinyin_converter.py`, CEDICT word-by-word translation quality
   (`sentence_translator.py` / `cedict_backend.py`), `TranslationManager`
   fallback logic (would have caught the P0 translation-fallback bug), or
