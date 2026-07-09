@@ -30,11 +30,6 @@ nllb = [
     "transformers>=4.40.0",
     "huggingface_hub>=0.23.0",
 ]
-dev = [
-    "pytest>=7.4.0",
-    "black>=23.0.0",
-    "ruff>=0.1.0",
-]
 
 [project.scripts]
 anki-chinese = "main:main"
@@ -55,8 +50,12 @@ target-version = ["py39"]
 line-length = 100
 target-version = "py39"
 
+# Single source of truth for dev tooling (uv installs this group by default).
+# An older [project.optional-dependencies].dev with conflicting pins is gone.
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
 ]
