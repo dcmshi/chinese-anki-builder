@@ -24,7 +24,7 @@ Test suite status at time of audit: **48/48 passing**.
   non-empty string as success, caches it, and never falls back to CEDICT — so
   cards can show the Chinese sentence as its own "translation". Fix: raise (or
   return `""`) so the manager's fallback chain actually engages.
-- [ ] **Wheel packaging is broken** — `[tool.hatch.build.targets.wheel]`
+- [x] **Wheel packaging is broken** — `[tool.hatch.build.targets.wheel]`
   (`pyproject.toml:47`) lists `["extract", "process", "tts", "anki", "utils"]`
   but omits the `translate/` package, and top-level `main.py` is not packaged
   at all even though `[project.scripts] anki-chinese = "main:main"` needs it.
