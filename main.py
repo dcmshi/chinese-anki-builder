@@ -12,11 +12,13 @@ from pathlib import Path
 from typing import List
 import yaml
 
-# Fix Windows console encoding for Chinese characters
+# Fix Windows console encoding for Chinese characters. reconfigure() adjusts
+# the stream in place -- rewrapping sys.stdout in a new TextIOWrapper broke
+# pytest's capture (the wrapper closed pytest's temp stream when GC'd).
 if sys.platform == "win32":
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
 
 # Import modules
 from extract.epub_extractor import extract_text_from_epub
@@ -30,15 +32,23 @@ from translate.manager import TranslationManager
 
 
 def load_config(config_path: str = None) -> dict:
-    """Load configuration from YAML file."""
-    if config_path and Path(config_path).exists():
-        with open(config_path, "r") as f:
-            return yaml.safe_load(f)
-    elif Path("config.yaml").exists():
-        with open("config.yaml", "r") as f:
-            return yaml.safe_load(f)
-    else:
-        return {}
+    """
+    Load configuration from YAML file.
+
+    An explicitly passed path must exist -- silently falling back to
+    ./config.yaml would run with settings the user didn't choose.
+    """
+    if config_path:
+        if not Path(config_path).exists():
+            raise FileNotFoundError(f"Config file not found: {config_path}")
+        with open(config_path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+
+    if Path("config.yaml").exists():
+        with open("config.yaml", "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+
+    return {}
 
 
 def extract_book(input_path: str):

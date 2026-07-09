@@ -55,7 +55,7 @@ Test suite status at time of audit: **48/48 passing**.
   returns numbered pinyin (`ni3 hao3`, `process/pinyin_converter.py:23`) while
   sentence pinyin uses tone marks via pypinyin. Convert CEDICT numbered pinyin
   to diacritics for display consistency.
-- [ ] **`--config` pointing at a missing file is silently ignored** —
+- [x] **`--config` pointing at a missing file is silently ignored** —
   `load_config` (`main.py:34`) falls back to `./config.yaml` without a
   warning. Error (or at least warn) when an explicitly passed config path
   doesn't exist.
