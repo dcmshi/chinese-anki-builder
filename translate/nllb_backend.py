@@ -107,7 +107,13 @@ class NLLBTranslateBackend(TranslationBackend):
             target_lang: Short target language code (mapped to a FLORES-200 code)
 
         Returns:
-            Translated text, or the original text on failure
+            Translated text
+
+        Raises:
+            RuntimeError on failure. Never returns the source text: a
+            non-empty return is treated as success by TranslationManager and
+            cached, which would silently disable its fallback chain and put
+            the Chinese sentence on the card as its own "translation".
         """
         if not text or not text.strip():
             return ""
@@ -119,28 +125,23 @@ class NLLBTranslateBackend(TranslationBackend):
         src_code = NLLB_LANG_CODES.get(source_lang.lower(), "zho_Hans")
         tgt_code = NLLB_LANG_CODES.get(target_lang.lower(), "eng_Latn")
 
-        try:
-            # Setting src_lang makes encode() prepend the source language token.
-            self.tokenizer.src_lang = src_code
-            source_tokens = self.tokenizer.convert_ids_to_tokens(self.tokenizer.encode(text))
+        # Setting src_lang makes encode() prepend the source language token.
+        self.tokenizer.src_lang = src_code
+        source_tokens = self.tokenizer.convert_ids_to_tokens(self.tokenizer.encode(text))
 
-            # The decoder is forced to start in the target language.
-            results = self.translator.translate_batch(
-                [source_tokens], target_prefix=[[tgt_code]]
-            )
-            target_tokens = results[0].hypotheses[0]
+        # The decoder is forced to start in the target language.
+        results = self.translator.translate_batch(
+            [source_tokens], target_prefix=[[tgt_code]]
+        )
+        target_tokens = results[0].hypotheses[0]
 
-            # Drop the leading target-language token before decoding.
-            if target_tokens and target_tokens[0] == tgt_code:
-                target_tokens = target_tokens[1:]
+        # Drop the leading target-language token before decoding.
+        if target_tokens and target_tokens[0] == tgt_code:
+            target_tokens = target_tokens[1:]
 
-            return self.tokenizer.decode(
-                self.tokenizer.convert_tokens_to_ids(target_tokens)
-            ).strip()
-
-        except Exception as e:
-            print(f"NLLB translation error: {e}")
-            return text  # Fall back to original text
+        return self.tokenizer.decode(
+            self.tokenizer.convert_tokens_to_ids(target_tokens)
+        ).strip()
 
     def get_name(self) -> str:
         return "NLLB-200 (CTranslate2, Offline Neural MT)"

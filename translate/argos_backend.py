@@ -100,38 +100,37 @@ class ArgosTranslateBackend(TranslationBackend):
 
         Returns:
             Translated English text
+
+        Raises:
+            RuntimeError/ValueError on failure. Never returns the source text:
+            a non-empty return is treated as success by TranslationManager and
+            cached, which would silently disable its fallback chain and put
+            the Chinese sentence on the card as its own "translation".
         """
         if not self._initialized:
             if not self.initialize():
                 raise RuntimeError("Argos Translate not initialized")
 
-        try:
-            # Get translation language objects
-            from_lang = next(
-                (lang for lang in self.installed_languages if lang.code == source_lang),
-                None
-            )
-            to_lang = next(
-                (lang for lang in self.installed_languages if lang.code == target_lang),
-                None
-            )
+        # Get translation language objects
+        from_lang = next(
+            (lang for lang in self.installed_languages if lang.code == source_lang),
+            None
+        )
+        to_lang = next(
+            (lang for lang in self.installed_languages if lang.code == target_lang),
+            None
+        )
 
-            if not from_lang or not to_lang:
-                raise ValueError(f"Language pair {source_lang}->{target_lang} not available")
+        if not from_lang or not to_lang:
+            raise ValueError(f"Language pair {source_lang}->{target_lang} not available")
 
-            # Get translation
-            translation = from_lang.get_translation(to_lang)
+        # Get translation
+        translation = from_lang.get_translation(to_lang)
 
-            if not translation:
-                raise ValueError("Translation model not found")
+        if not translation:
+            raise ValueError("Translation model not found")
 
-            # Translate
-            result = translation.translate(text)
-            return result
-
-        except Exception as e:
-            print(f"Translation error: {e}")
-            return text  # Fallback to original text
+        return translation.translate(text)
 
     def get_name(self) -> str:
         """Get backend name."""

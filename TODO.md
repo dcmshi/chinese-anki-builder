@@ -17,7 +17,7 @@ Test suite status at time of audit: **48/48 passing**.
   sentences. Fix: collapse only spaces/tabs (`[ \t]+`) and preserve newlines,
   or drop digit lines before normalizing. (The limitation is even acknowledged
   in `tests/test_text_cleaner.py:110`.)
-- [ ] **Failed neural translation silently poisons cards** — on any error,
+- [x] **Failed neural translation silently poisons cards** — on any error,
   `ArgosTranslateBackend.translate` (`translate/argos_backend.py:134`) and
   `NLLBTranslateBackend.translate` (`translate/nllb_backend.py:143`) return the
   **original Chinese text**. `TranslationManager.translate` treats any
