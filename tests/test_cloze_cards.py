@@ -68,6 +68,25 @@ class TestCreateClozeNote:
     def test_cloze_model_is_cloze_type(self):
         assert get_chinese_cloze_model().model_type == genanki.Model.CLOZE
 
+    def test_cloze_note_references_audio(self):
+        """Regression: the cloze model had no Audio field, so --tts --cloze
+        bundled MP3s that no note referenced (orphaned media)."""
+        card = make_card(audio_filename="zh_abc123.mp3")
+
+        note = create_cloze_note(card, CEDICT, get_chinese_cloze_model())
+
+        assert "[sound:zh_abc123.mp3]" in note.fields
+
+    def test_cloze_note_without_audio_has_empty_field(self):
+        note = create_cloze_note(make_card(), CEDICT, get_chinese_cloze_model())
+        field_names = [f["name"] for f in get_chinese_cloze_model().fields]
+        assert note.fields[field_names.index("Audio")] == ""
+
+    def test_cloze_model_field_count_matches_note(self):
+        model = get_chinese_cloze_model()
+        note = create_cloze_note(make_card(), CEDICT, model)
+        assert len(note.fields) == len(model.fields)
+
 
 class TestBuildClozeDeck:
     def test_writes_apkg(self, tmp_path):

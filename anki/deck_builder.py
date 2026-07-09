@@ -193,6 +193,8 @@ def create_cloze_note(
 
     tag = chapter_to_tag(card.chapter)
 
+    audio = f"[sound:{card.audio_filename}]" if card.audio_filename else ""
+
     # Distinct GUID namespace so a cloze deck and a regular deck built from
     # the same book never collide on import.
     return genanki.Note(
@@ -205,6 +207,7 @@ def create_cloze_note(
             definition,  # Definition
             card.sentence_pinyin or "",  # SentencePinyin
             card.sentence_translation or "",  # SentenceTranslation
+            audio,  # Audio
             card.chapter,  # Chapter
         ],
         guid=generate_note_guid(card.word, f"cloze::{card.sentence}"),

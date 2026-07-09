@@ -145,6 +145,10 @@ CLOZE_BACK_TEMPLATE = """
 <div class="sentence-translation">{{SentenceTranslation}}</div>
 {{/SentenceTranslation}}
 
+{{#Audio}}
+<div class="audio">{{Audio}}</div>
+{{/Audio}}
+
 {{#Chapter}}
 <div class="chapter-tag">Chapter: {{Chapter}}</div>
 {{/Chapter}}
@@ -169,6 +173,7 @@ def get_chinese_cloze_model():
             {"name": "Definition"},
             {"name": "SentencePinyin"},
             {"name": "SentenceTranslation"},
+            {"name": "Audio"},
             {"name": "Chapter"},
         ],
         templates=[

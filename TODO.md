@@ -32,7 +32,7 @@ No further correctness, performance, or packaging issues found.
 Deeper sweep after pushing: ruff over the whole tree, model/template
 cross-checks, and filename/ID edge cases.
 
-- [ ] **Cloze decks silently drop TTS audio** — the cloze model has no
+- [x] **Cloze decks silently drop TTS audio** — the cloze model has no
   Audio field, so `--tts --cloze` generates and bundles MP3s that no note
   references (wasted downloads, orphaned media in the .apkg). Add an Audio
   field + template block to the cloze model and populate it in
