@@ -38,7 +38,7 @@ Test suite status at time of audit: **48/48 passing**.
   行, …) get an arbitrary pronunciation/definition — often a proper noun or
   rare reading. Store all entries per key and pick sensibly (e.g., prefer
   non-capitalized pinyin / non-proper-noun senses).
-- [ ] **Note GUID is a 32-bit int** (`anki/deck_builder.py:31`, md5[:8]).
+- [x] **Note GUID is a 32-bit int** (`anki/deck_builder.py:31`, md5[:8]).
   Birthday collisions are plausible at 3k cards (~0.1%), and colliding notes
   silently overwrite each other on Anki import. Use the full hash string (or
   `genanki.guid_for`). Note: changing GUIDs breaks re-import dedup with

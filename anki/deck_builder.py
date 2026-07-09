@@ -12,23 +12,24 @@ from process.cedict_loader import DictEntry
 from process.pinyin_converter import word_to_pinyin
 
 
-def generate_note_id(word: str, sentence: str) -> int:
+def generate_note_guid(word: str, sentence: str) -> str:
     """
-    Generate a deterministic note ID from word and sentence.
+    Generate a deterministic note GUID from word and sentence.
 
-    This ensures the same card always gets the same ID.
+    This ensures the same card always gets the same GUID. The full 128-bit
+    hash is used: truncating (an earlier version kept 32 bits) makes birthday
+    collisions realistic at deck sizes of a few thousand cards, and notes
+    sharing a GUID silently overwrite each other on Anki import.
 
     Args:
         word: The word
         sentence: The sentence
 
     Returns:
-        Integer ID for the note
+        Hex-string GUID for the note
     """
     content = f"{word}::{sentence}"
-    hash_digest = hashlib.md5(content.encode("utf-8")).hexdigest()
-    # Convert first 8 hex chars to int
-    return int(hash_digest[:8], 16)
+    return hashlib.md5(content.encode("utf-8")).hexdigest()
 
 
 def create_anki_note(
@@ -83,7 +84,7 @@ def create_anki_note(
             audio,  # Audio
             card.chapter,  # Chapter
         ],
-        guid=generate_note_id(card.word, card.sentence),
+        guid=generate_note_guid(card.word, card.sentence),
     )
 
     return note

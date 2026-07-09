@@ -4,33 +4,40 @@ import pytest
 from collections import Counter
 from process.word_selector import WordCard
 from process.cedict_loader import DictEntry
-from anki.deck_builder import generate_note_id, create_anki_note
+from anki.deck_builder import generate_note_guid, create_anki_note
 from anki.templates import get_chinese_model
 
 
 class TestDeckBuilder:
     """Test Anki deck building functionality."""
 
-    def test_generate_note_id_deterministic(self):
-        """Test that note IDs are deterministic."""
+    def test_generate_note_guid_deterministic(self):
+        """Test that note GUIDs are deterministic."""
         word = "你好"
         sentence = "你好世界"
 
-        id1 = generate_note_id(word, sentence)
-        id2 = generate_note_id(word, sentence)
+        guid1 = generate_note_guid(word, sentence)
+        guid2 = generate_note_guid(word, sentence)
 
-        assert id1 == id2
-        assert isinstance(id1, int)
+        assert guid1 == guid2
+        assert isinstance(guid1, str)
 
-    def test_generate_note_id_different_inputs(self):
-        """Test that different inputs produce different IDs."""
-        id1 = generate_note_id("你好", "你好世界")
-        id2 = generate_note_id("世界", "你好世界")
-        id3 = generate_note_id("你好", "你好中国")
+    def test_generate_note_guid_uses_full_hash(self):
+        """Regression: GUIDs were truncated to 32 bits, making birthday
+        collisions realistic in ~3k-card decks (colliding notes silently
+        overwrite each other on Anki import)."""
+        guid = generate_note_guid("你好", "你好世界")
+        assert len(guid) == 32  # full md5 hex digest, not a truncation
 
-        assert id1 != id2
-        assert id1 != id3
-        assert id2 != id3
+    def test_generate_note_guid_different_inputs(self):
+        """Test that different inputs produce different GUIDs."""
+        guid1 = generate_note_guid("你好", "你好世界")
+        guid2 = generate_note_guid("世界", "你好世界")
+        guid3 = generate_note_guid("你好", "你好中国")
+
+        assert guid1 != guid2
+        assert guid1 != guid3
+        assert guid2 != guid3
 
     def test_create_anki_note_with_definition(self):
         """Test creating an Anki note with a valid definition."""
