@@ -48,7 +48,7 @@ cross-checks, and filename/ID edge cases.
   E713 (`not x in` → `x not in`). Add a lint gate so the tree stays clean.
 - [x] **Integration test for the full pipeline** (TESTING.md TODO) — EPUB →
   .apkg end-to-end with a stubbed CEDICT, asserting on the built deck.
-- [ ] **Direct tests for `utils/chinese_utils.py`** (TESTING.md TODO) —
+- [x] **Direct tests for `utils/chinese_utils.py`** (TESTING.md TODO) —
   currently only covered indirectly.
 
 ## P0 — Bugs (broken or produces wrong output)

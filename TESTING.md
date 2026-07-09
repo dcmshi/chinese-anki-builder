@@ -105,7 +105,9 @@ tests/
 ├── test_nllb_backend.py          # NLLB wiring and config
 ├── test_sentence_translator.py   # Word-by-word translation quality
 ├── test_main.py                  # Config loading, settings precedence, stats export
-└── test_repo_health.py           # Every file compiles; wheel ships all packages
+├── test_chinese_utils.py         # Character detection and whitespace helpers
+├── test_integration.py           # End-to-end: EPUB -> .apkg (network stubbed)
+└── test_repo_health.py           # Every file compiles; wheel ships all packages; ruff clean
 ```
 
 ### Test Organization
@@ -270,10 +272,8 @@ Add to README.md:
 
 ## TODO: Tests to Add
 
-- [ ] Integration test for the full pipeline (EPUB → deck) using a generated
-      fixture book and a stubbed CEDICT (avoid network in tests)
-- [ ] `test_chinese_utils.py` - direct tests for character helpers (currently
-      covered indirectly via text_cleaner/tokenizer)
+None outstanding — the integration test (EPUB → deck with stubbed network)
+and direct `chinese_utils` tests landed 2026-07-09.
 
 ## Performance Testing
 
