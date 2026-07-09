@@ -5,7 +5,7 @@ import json
 import pytest
 
 from main import load_config, main, resolve_setting
-from utils.file_utils import write_stats_json
+from utils.file_utils import sanitize_filename, write_stats_json
 
 
 class TestLoadConfig:
@@ -76,6 +76,28 @@ class TestResolveSetting:
     def test_false_cli_value_is_respected(self):
         # False is a real value (e.g. a negated flag), not "absent".
         assert resolve_setting(False, {"cloze": True}, ["cloze"], True) is False
+
+
+class TestSanitizeFilename:
+    """Regression: the deck name was used verbatim as the .apkg filename --
+    'A/B' nested a directory and ':' crashed on Windows."""
+
+    def test_replaces_separators_and_forbidden_chars(self):
+        assert sanitize_filename("A/B") == "A_B"
+        assert sanitize_filename("Deck: Test?") == "Deck_ Test_"
+        assert sanitize_filename('a\\b<c>d"e|f*g') == "a_b_c_d_e_f_g"
+
+    def test_strips_trailing_dots_and_spaces(self):
+        # Trailing dots/spaces are silently dropped by Windows.
+        assert sanitize_filename("deck. ") == "deck"
+
+    def test_chinese_names_untouched(self):
+        assert sanitize_filename("三体全集 - 90% Coverage") == "三体全集 - 90% Coverage"
+
+    def test_empty_result_falls_back(self):
+        assert sanitize_filename("") == "deck"
+        assert sanitize_filename("...") == "deck"
+        assert sanitize_filename("   ") == "deck"
 
 
 class TestStatsExport:

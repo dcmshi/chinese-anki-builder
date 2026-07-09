@@ -30,7 +30,7 @@ from process.word_selector import select_top_words, create_word_cards
 from process.hsk_filter import filter_by_hsk, parse_hsk_levels
 from anki.deck_builder import build_deck
 from translate.manager import TranslationManager
-from utils.file_utils import write_stats_json
+from utils.file_utils import sanitize_filename, write_stats_json
 
 
 def load_config(config_path: str = None) -> dict:
@@ -240,9 +240,11 @@ def process_pipeline(
                         break
             print(f"Audio generated for {len(media_files)} of {len(cards)} cards")
 
-    # Step 9: Build Anki deck
+    # Step 9: Build Anki deck. The deck keeps its display name; only the
+    # filename is sanitized (deck names like "A/B: test" are valid in Anki
+    # but illegal or directory-nesting as paths).
     print("\nBuilding Anki deck...")
-    output_path = Path(output_dir) / f"{deck_name}.apkg"
+    output_path = Path(output_dir) / f"{sanitize_filename(deck_name)}.apkg"
     build_deck(
         deck_name, cards, cedict, str(output_path), cloze=cloze, media_files=media_files
     )

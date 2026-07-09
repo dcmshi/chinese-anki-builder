@@ -41,7 +41,7 @@ cross-checks, and filename/ID edge cases.
   same birthday-collision class as the note-GUID bug: two deck names
   hashing to the same ID are treated as the *same deck* by Anki. Widen to
   the safe genanki/Anki range.
-- [ ] **Deck name is used unsanitized as the output filename** — `--deck
+- [x] **Deck name is used unsanitized as the output filename** — `--deck
   "A/B"` writes to a nested directory; `:` or `?` in a name crashes on
   Windows. Sanitize the filename only (the deck keeps its display name).
 - [x] **16 ruff findings** — 15 unused imports across 10 files plus one
