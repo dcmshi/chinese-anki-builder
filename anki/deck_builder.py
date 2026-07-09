@@ -2,6 +2,7 @@
 
 import genanki
 import html
+import re
 from typing import List, Dict
 from pathlib import Path
 import hashlib
@@ -59,6 +60,24 @@ def highlight_word_in_sentence(word: str, sentence: str) -> str:
     )
 
 
+def chapter_to_tag(chapter: str) -> str:
+    """
+    Turn a chapter title into a valid Anki tag.
+
+    Anki tags cannot contain whitespace, so runs of it become underscores.
+    The chapter:: prefix groups all chapter tags hierarchically in Anki's
+    browser sidebar.
+
+    Args:
+        chapter: Chapter title (may be empty)
+
+    Returns:
+        Tag string, or "" for an empty/blank chapter
+    """
+    sanitized = re.sub(r"\s+", "_", chapter.strip())
+    return f"chapter::{sanitized}" if sanitized else ""
+
+
 def create_anki_note(
     card: WordCard,
     cedict: Dict[str, DictEntry],
@@ -98,10 +117,16 @@ def create_anki_note(
     # For now, no audio
     audio = ""
 
+    # Chapter as a real Anki tag (in addition to the field) so decks can be
+    # filtered/studied per chapter in Anki's browser.
+    tag = chapter_to_tag(card.chapter)
+    tags = [tag] if tag else []
+
     # Create note with deterministic ID (GUID from the raw sentence so
     # highlight markup changes don't orphan existing notes)
     note = genanki.Note(
         model=model,
+        tags=tags,
         fields=[
             card.word,  # Word
             highlight_word_in_sentence(card.word, card.sentence),  # Sentence

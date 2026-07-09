@@ -4,7 +4,12 @@ import pytest
 from collections import Counter
 from process.word_selector import WordCard
 from process.cedict_loader import DictEntry
-from anki.deck_builder import generate_note_guid, create_anki_note, highlight_word_in_sentence
+from anki.deck_builder import (
+    chapter_to_tag,
+    create_anki_note,
+    generate_note_guid,
+    highlight_word_in_sentence,
+)
 from anki.templates import get_chinese_model, FRONT_TEMPLATE, CARD_CSS
 
 
@@ -108,6 +113,28 @@ class TestDeckBuilder:
 
         # GUIDs should be the same for same card
         assert note1.guid == note2.guid
+
+    def test_note_gets_chapter_tag(self):
+        card = WordCard(word="你好", sentence="你好世界", frequency=10, chapter="第一章 起源")
+        cedict = {"你好": DictEntry("你好", "你好", "ni3 hao3", ["hello"])}
+
+        note = create_anki_note(card, cedict, get_chinese_model())
+
+        assert note.tags == ["chapter::第一章_起源"]
+        # Anki tags must never contain whitespace.
+        assert all(" " not in t for t in note.tags)
+
+    def test_no_tag_for_empty_chapter(self):
+        card = WordCard(word="你好", sentence="你好世界", frequency=10, chapter="")
+        cedict = {"你好": DictEntry("你好", "你好", "ni3 hao3", ["hello"])}
+
+        note = create_anki_note(card, cedict, get_chinese_model())
+
+        assert note.tags == []
+
+    def test_chapter_to_tag_sanitizes_whitespace(self):
+        assert chapter_to_tag("Chapter 1  Intro") == "chapter::Chapter_1_Intro"
+        assert chapter_to_tag("   ") == ""
 
     def test_highlight_wraps_all_occurrences(self):
         result = highlight_word_in_sentence("学习", "学习使人进步，我爱学习。")
