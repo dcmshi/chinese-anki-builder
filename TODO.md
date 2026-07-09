@@ -51,6 +51,9 @@ cross-checks, and filename/ID edge cases.
 - [x] **Direct tests for `utils/chinese_utils.py`** (TESTING.md TODO) —
   currently only covered indirectly.
 
+All third-pass items complete. Final state: **261 tests, 90% coverage**,
+ruff-clean with a lint gate in the suite.
+
 ## P0 — Bugs (broken or produces wrong output)
 
 - [x] **`analyze_coverage.py` does not compile** — `SyntaxError: unterminated
