@@ -46,6 +46,7 @@ anki-chinese-deck/
 │   ├── word_selector.py         # Frequency analysis + sentence index
 │   ├── hsk_filter.py            # HSK 3.0 level filtering
 │   ├── pinyin_converter.py      # Tone-mark pinyin (converts CEDICT numbers)
+│   ├── review.py                # Pre-import QC CSV export/load
 │   └── sentence_translator.py
 │
 ├── translate/                   # Translation backends
@@ -67,7 +68,7 @@ anki-chinese-deck/
 │   ├── file_utils.py
 │   └── chinese_utils.py
 │
-└── tests/                       # Unit tests (290 tests)
+└── tests/                       # Unit tests (308 tests)
 ```
 
 ## Design Principles
@@ -128,7 +129,15 @@ uv run python main.py --input book.epub --deck "Beginner" --top-words 300 --min-
 --stats <file>          # Export pipeline stats to JSON
 --cloze                 # Cloze-deletion cards instead of word-in-sentence
 --tts                   # gTTS word audio (requires internet + `uv sync --extra tts`)
+--review <csv>          # Write cards to a CSV for QC and stop (no deck built)
+--from-review <csv>     # Build the deck from a reviewed CSV (replaces --input)
 ```
+
+**Pre-import QC workflow**: `--review cards.csv` stops after card creation
+and writes one editable row per card (word, sentence, pinyin, definition,
+translation, chapter). Edit or delete rows (blank word/sentence = drop),
+then `--from-review cards.csv` builds the deck — every edited field is
+authoritative, including word pinyin and definition.
 
 Settings read from `config.yaml` (CLI flags override these): `top_words`,
 `min_frequency`, `output_dir`, `enable_tts`, `cloze`, `hsk_levels`,
@@ -198,7 +207,7 @@ uv run pytest tests/ -v
 
 ## Status
 
-**Production ready**: Text extraction (EPUB + PDF chapters), tokenization, word selection, HSK filtering, dictionary lookup, pinyin, translation, TTS audio, stats export, deck generation (regular + cloze), CLI
+**Production ready**: Text extraction (EPUB + PDF chapters), tokenization, word selection, HSK filtering, dictionary lookup, pinyin, translation, TTS audio, stats export, deck generation (regular + cloze), pre-import QC review workflow, CLI
 
 **Pending**: Known-words filtering, sentence audio
 

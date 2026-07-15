@@ -59,6 +59,8 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 - Front: Sentence with the target word highlighted inline (pinyin hidden)
 - Back: Sentence pinyin, word pinyin, definition, translation
 - Optional cloze-deletion card type (--cloze)
+- Pre-import QC review workflow (--review CSV export, --from-review build;
+  reviewer edits are authoritative, including word pinyin and definition)
 - Optional word audio via gTTS (--tts), cached and bundled as media
 - Deterministic note GUIDs (full 128-bit hash, collision-safe)
 - Chapter on every card (field + `chapter::…` tag)
@@ -74,7 +76,7 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 
 **Configuration & CLI**:
 - YAML configuration support (CLI > config.yaml > defaults)
-- CLI with argparse (--hsk, --stats, --cloze, --tts wired)
+- CLI with argparse (--hsk, --stats, --cloze, --tts, --review, --from-review wired)
 - Stats export to JSON (counts, coverage, word list)
 - uv-based dependency management
 - Progress bars (tqdm) for long operations
@@ -95,7 +97,6 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 - Traditional Chinese support
 - Online translation APIs (Google, DeepL)
 - Context-aware translation (previous sentence as context via HY-MT)
-- Pre-import QC review workflow (`--review` CSV export / `--from-review`)
 
 ## Translation Architecture
 

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.5.0] - 2026-07-15
+
+### Added
+
+- **Pre-import QC review workflow**: `--review cards.csv` stops the
+  pipeline after card creation and writes one editable row per card
+  (UTF-8 BOM, Excel-friendly); `--from-review cards.csv` builds the deck
+  from the reviewed file with no re-extraction or re-translation. Deleted
+  or blanked rows drop cards; every edited field is authoritative —
+  WordCard gained `word_pinyin` / `definition` overrides that both note
+  types honor, so a wrong CEDICT sense can be fixed by hand
+
 ## [0.4.0] - 2026-07-15
 
 Translation state-of-the-art release: findings from the 2026-07-15 audit

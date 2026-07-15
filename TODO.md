@@ -57,14 +57,22 @@ no longer competitive for zh→en quality; Argos (Marian-era) further behind.
 
 ### Deferred (recorded, not in this pass)
 
-- [ ] **Pre-import QC workflow** — decision: **no web front end** (non-goal;
-  Anki's Browse window already covers post-import editing). Instead:
-  `--review cards.csv` to emit editable rows before deck build +
-  `--from-review cards.csv` to build from the reviewed file; optional
-  self-contained static HTML card preview for visual skimming.
+- [x] **Pre-import QC workflow** *(shipped 2026-07-15, follow-up pass)* —
+  decision: **no web front end** (non-goal; Anki's Browse window already
+  covers post-import editing). Implemented `--review cards.csv` (stops
+  before TTS/deck build, one editable row per card, UTF-8 BOM for Excel)
+  and `--from-review cards.csv` (builds from the reviewed file; every
+  edited field authoritative — WordCard gained word_pinyin/definition
+  overrides honored by both note types). Verified end-to-end: 9 exported →
+  2 deleted + 1 translation edited → 7-note deck with the edit on the card.
+  Optional static HTML preview still open (below).
+- [ ] **Static HTML card preview** — self-contained page rendering cards
+  as they'll look, for visual skimming before/alongside the CSV review.
 - [ ] **Context-aware translation** — all backends translate sentences in
   isolation; the HY-MT LLM backend makes a previous-sentence-context mode
-  feasible later (pronoun/referent fidelity in literary text).
+  feasible later (pronoun/referent fidelity in literary text). Hold until
+  there's eval evidence: the official HY-MT prompt is strictly
+  single-segment, so deviating risks quality.
 
 ### Quality validation (2026-07-15, local)
 
