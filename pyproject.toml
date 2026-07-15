@@ -1,6 +1,6 @@
 [project]
 name = "anki-chinese-deck"
-version = "0.3.0"
+version = "0.4.0"
 description = "Generate Anki flashcards for learning Chinese from EPUB and PDF books"
 readme = "README.md"
 # Capped below 3.14: the Argos Translate neural backend is incompatible with

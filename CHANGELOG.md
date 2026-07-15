@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.4.0] - 2026-07-15
+
+Translation state-of-the-art release: findings from the 2026-07-15 audit
+(see TODO.md), all action items implemented. Suite 261 → 290 tests.
+
+### Added
+
+- **HY-MT1.5 backend** (`uv sync --extra hymt`): Tencent's WMT25-winning
+  translation model line on llama.cpp (GGUF), new top quality tier (95).
+  Default 1.8B Q4_K_M (~1GB); 7B build and revision pinning via config/env
+- **Batch translation**: example sentences are translated in one
+  deduplicated `translate_batch` call — a single CTranslate2 batch for
+  NLLB (several times faster than per-sentence calls); failed items degrade
+  through the per-item fallback chain
+- **Persistent translation cache** (`data/cache/translations.json`): keyed
+  by backend + language pair + text, so re-running a book skips
+  re-translation and backend upgrades never serve stale output
+  (`translation_cache: false` to disable)
+- **Translation config keys**: `preferred_backend` (force hymt/nllb/argos/
+  cedict), `prefer_offline` (was hardcoded), `translation_cache`, NLLB
+  decoding params, model revision pins
+
+### Changed
+
+- NLLB decoding hardened: beam 4, no-repeat-ngram 3, input/decoding length
+  caps (NLLB is prone to repetition loops on noisy input)
+- Argos init logs the installed zh→en package version (audit trail; Argos
+  has no revision pinning)
+
+### Fixed
+
+- The YAML config is now passed through to translation backends —
+  documented keys like `nllb_model_repo` previously only worked as env vars
+
 ## [0.3.0] - 2026-07-09
 
 Full-repo audit release: every P0-P6 item in TODO.md addressed, one commit

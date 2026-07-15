@@ -49,11 +49,12 @@ anki-chinese-deck/
 │   └── sentence_translator.py
 │
 ├── translate/                   # Translation backends
-│   ├── base.py                  # Abstract backend
-│   ├── nllb_backend.py          # NLLB-200 CT2 (opt-in, highest quality)
+│   ├── base.py                  # Abstract backend (translate + translate_batch)
+│   ├── hymt_backend.py          # HY-MT1.5 llama.cpp (opt-in, highest quality)
+│   ├── nllb_backend.py          # NLLB-200 CT2 (opt-in)
 │   ├── argos_backend.py         # Neural MT (Python 3.9-3.13)
 │   ├── cedict_backend.py        # Fallback (all versions)
-│   └── manager.py
+│   └── manager.py               # Fallback chain, batching, persistent cache
 │
 ├── anki/                        # Deck generation
 │   ├── templates.py             # Card templates (regular + cloze)
@@ -66,7 +67,7 @@ anki-chinese-deck/
 │   ├── file_utils.py
 │   └── chinese_utils.py
 │
-└── tests/                       # Unit tests (223 tests)
+└── tests/                       # Unit tests (290 tests)
 ```
 
 ## Design Principles
@@ -145,14 +146,23 @@ CLI > config.yaml > built-in default.
 **Pinyin**: pypinyin for sentences, CC-CEDICT primary for words (pypinyin fallback); CEDICT numbered pinyin is converted to tone marks so both styles match
 
 **Translation**:
-- NLLB-200 on CTranslate2 (neural MT, highest quality) - opt-in via `uv sync --extra nllb`
+- HY-MT1.5 on llama.cpp (WMT25-winning LLM MT, highest quality) - opt-in via
+  `uv sync --extra hymt`
+- NLLB-200 on CTranslate2 (neural MT, batched with decoding guards) - opt-in
+  via `uv sync --extra nllb`
 - Argos Translate (neural MT, Python 3.9-3.13) - default neural backend
 - CC-CEDICT word-by-word (fallback, all Python versions) - Acceptable
 - Pluggable backend system with automatic fallback, ranked by quality score
-  (NLLB 90 > Argos 80 > CC-CEDICT 40). NLLB is skipped automatically unless its
-  optional deps are installed; model repo/tokenizer are overridable via config
-  keys `nllb_model_repo` / `nllb_tokenizer_repo` or env `NLLB_CT2_MODEL` /
-  `NLLB_TOKENIZER`. First run downloads the model (~1GB for distilled-600M).
+  (HY-MT 95 > NLLB 90 > Argos 80 > CC-CEDICT 40). Opt-in backends are skipped
+  automatically unless their optional deps are installed. Model repos/files
+  are overridable and pinnable via config keys (`hymt_model_repo`,
+  `hymt_revision`, `nllb_model_repo`, `nllb_model_revision`, ...) or env vars
+  (`HYMT_GGUF_REPO`, `NLLB_CT2_MODEL`, ...). First run downloads the model
+  (~1GB for HY-MT 1.8B Q4_K_M or NLLB distilled-600M).
+- Example sentences are translated in one deduplicated `translate_batch` call
+  (native CT2 batch for NLLB); translations persist across runs in
+  `data/cache/translations.json`, keyed by backend + language pair + text.
+  Config: `preferred_backend`, `prefer_offline`, `translation_cache`.
 
 **Chapter Handling**: EPUB chapters in spine (reading) order; PDF chapters via heading heuristics (第X章 …); cards tagged with chapter (field + Anki tag); fallback to single chapter
 

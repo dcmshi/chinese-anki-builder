@@ -14,7 +14,7 @@ Automatically generate Anki flashcards for learning Chinese from EPUB and PDF bo
 - 📝 Generate word-in-sentence Anki cards (target word highlighted in the sentence)
 - 🧩 Optional cloze-deletion cards (`--cloze`)
 - 🗣️ Add pinyin (word + sentence, tone marks) and English definitions
-- 🌐 Pluggable translation backends (NLLB-200, Argos Translate neural MT, or CC-CEDICT fallback)
+- 🌐 Pluggable translation backends (HY-MT1.5, NLLB-200, Argos Translate neural MT, or CC-CEDICT fallback)
 - 🔊 Optional TTS word audio via gTTS (`--tts`, requires the `tts` extra)
 - 📊 Stats export (`--stats`): counts, coverage, and the selected word list as JSON
 - 💾 Offline-first: downloads required resources only if missing
@@ -134,7 +134,8 @@ anki-chinese-deck/
 - `BeautifulSoup4` - HTML parsing
 - `pypdf` - PDF extraction
 - `argostranslate` - Offline neural MT
-- Optional extras: `nllb` (NLLB-200 on CTranslate2), `tts` (gTTS audio)
+- Optional extras: `hymt` (HY-MT1.5 on llama.cpp, highest quality), `nllb`
+  (NLLB-200 on CTranslate2), `tts` (gTTS audio)
 
 ## Roadmap
 

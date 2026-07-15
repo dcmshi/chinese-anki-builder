@@ -33,13 +33,20 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 
 **Translation**:
 - Pluggable translation backend system
-- NLLB-200 on CTranslate2: Neural MT, highest quality (opt-in extra)
+- HY-MT1.5 on llama.cpp: WMT25-winning model line, highest quality (opt-in extra)
+- NLLB-200 on CTranslate2: Neural MT (opt-in extra), batched inference with
+  decoding guards (beam, no-repeat-ngram, length caps)
 - Argos Translate: Neural MT (Python 3.9-3.13)
 - CC-CEDICT: Word-by-word fallback (all Python versions)
 - Automatic backend selection and fallback (failed backends raise so the
-  chain actually engages; failures are never cached)
-- Quality-based ranking (NLLB 90/100, Argos 80/100, CEDICT 40/100)
-- Translation caching within a run (repeated sentences translate once)
+  chain actually engages; failures are never cached); `preferred_backend`
+  config override
+- Quality-based ranking (HY-MT 95/100, NLLB 90/100, Argos 80/100, CEDICT 40/100)
+- Batch translation: all example sentences translated in one deduplicated call
+- Translation caching in-run and persistent across runs
+  (`data/cache/translations.json`, keyed by backend so upgrades re-translate)
+- Reproducible model downloads (revision pins via config/env; Argos package
+  version logged)
 - Improved word-by-word quality:
   - Removes grammatical particles (的, 了, 着, 过)
   - Strips "to" prefix from verbs
@@ -87,7 +94,8 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 - Better sense disambiguation
 - Traditional Chinese support
 - Online translation APIs (Google, DeepL)
-- LLM-based translation
+- Context-aware translation (previous sentence as context via HY-MT)
+- Pre-import QC review workflow (`--review` CSV export / `--from-review`)
 
 ## Translation Architecture
 
@@ -101,19 +109,28 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 
 **Current Backends**:
 
-1. **NLLB-200 on CTranslate2** (Neural MT, opt-in)
+1. **HY-MT1.5 on llama.cpp** (LLM MT, opt-in) — current open offline SOTA
+   - Quality: 95/100 (Hunyuan-MT line won WMT25 in 30/31 language pairs)
+   - Install: `uv sync --extra hymt` (skipped automatically otherwise)
+   - Fully offline after the one-time GGUF download (~1GB, 1.8B Q4_K_M;
+     7B build available via config)
+   - Overridable via config or env (HYMT_GGUF_REPO / HYMT_GGUF_FILE);
+     pin with `hymt_revision` / HYMT_REVISION
+
+2. **NLLB-200 on CTranslate2** (Neural MT, opt-in)
    - Quality: 90/100
    - Install: `uv sync --extra nllb` (skipped automatically otherwise)
    - Fully offline after the one-time model download (~1GB distilled-600M)
    - Model/tokenizer overridable via config or env (NLLB_CT2_MODEL / NLLB_TOKENIZER)
+   - Batched CT2 inference with decoding guards (beam, no-repeat-ngram, length caps)
 
-2. **Argos Translate** (Neural MT, default)
+3. **Argos Translate** (Neural MT, default)
    - Quality: 80/100
    - Python: 3.9-3.13 (project caps requires-python below 3.14 for it)
    - Fully offline after model download; cached model skips the package index
    - Natural, grammatical translations
 
-3. **CC-CEDICT Word-by-Word** (Fallback)
+4. **CC-CEDICT Word-by-Word** (Fallback)
    - Quality: 40/100
    - Python: All versions (3.9+)
    - Fast, minimal dependencies
@@ -122,15 +139,15 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 
 **Future Backend Support**:
 - Online APIs: Google Translate, DeepL, Azure
-- LLM-based: GPT-4, Claude, local LLMs
 - Hybrid approaches
 - Custom translation models
 
 **Module Structure**:
 ```
 translate/
-├── base.py              # Abstract base class
-├── nllb_backend.py      # NLLB-200 CTranslate2 (opt-in, highest quality)
+├── base.py              # Abstract base class (translate + translate_batch)
+├── hymt_backend.py      # HY-MT1.5 llama.cpp (opt-in, highest quality)
+├── nllb_backend.py      # NLLB-200 CTranslate2 (opt-in)
 ├── argos_backend.py     # Argos Translate implementation
 ├── cedict_backend.py    # CC-CEDICT fallback
 └── manager.py           # Translation orchestrator
@@ -286,7 +303,8 @@ uv run pytest tests/ --cov=. --cov-report=term-missing
 - No context-aware grammar transformations
 - Particles removed (may lose nuance)
 - Approximation for understanding, not literary translation
-- *Mitigation*: Use a neural MT backend — Argos (default) or NLLB-200 (`uv sync --extra nllb`)
+- *Mitigation*: Use a neural MT backend — Argos (default), NLLB-200
+  (`uv sync --extra nllb`), or best: HY-MT1.5 (`uv sync --extra hymt`)
 
 ### Dictionary Coverage
 
@@ -326,8 +344,9 @@ tqdm >= 4.66.0               # Progress bars
 ### Optional Extras
 
 ```toml
-nllb: transformers, huggingface_hub   # NLLB-200 CT2 backend (uv sync --extra nllb)
-tts: gtts >= 2.5.0                    # Word audio (uv sync --extra tts)
+hymt: llama-cpp-python, huggingface_hub  # HY-MT1.5 backend (uv sync --extra hymt)
+nllb: transformers, huggingface_hub      # NLLB-200 CT2 backend (uv sync --extra nllb)
+tts: gtts >= 2.5.0                       # Word audio (uv sync --extra tts)
 ```
 
 ### Development Dependencies (dependency group "dev")
@@ -476,6 +495,7 @@ uv run python main.py \
 ## Translation Backend Selection
 
 ### Current Status (Python 3.13)
+- ✅ HY-MT1.5 (llama.cpp LLM MT) - Active when the `hymt` extra is installed
 - ✅ NLLB-200 CT2 (Neural MT) - Active when the `nllb` extra is installed
 - ✅ Argos Translate (Neural MT) - Default active backend
 - ✅ CC-CEDICT (Fallback) - Available
@@ -483,7 +503,9 @@ uv run python main.py \
 ### Production Recommendations
 
 **For Best Translation Quality**:
-- `uv sync --extra nllb` for NLLB-200 (quality 90)
+- `uv sync --extra hymt` for HY-MT1.5 (quality 95, WMT25-winning line;
+  slowest — LLM decoding on CPU)
+- `uv sync --extra nllb` for NLLB-200 (quality 90, fast batched inference)
 - Otherwise Argos Translate provides solid neural MT (quality 80)
 
 **For Maximum Compatibility**:

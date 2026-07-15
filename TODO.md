@@ -1,4 +1,95 @@
-# TODO — Repo Audit Action Items (2026-07-09)
+# TODO — Repo Audit Action Items
+
+## Audit 2026-07-15 — Translation state-of-the-art review
+
+Deep audit of the translation stack against the mid-2026 open-model landscape,
+plus a decision on deck-editing/QC UI. Architecture verdict: the pluggable
+chain (quality-ranked fallback, raise-on-failure, failures never cached) is
+sound, but the backends were two generations behind open SOTA for zh→en.
+
+Field check (July 2026): Tencent **Hunyuan-MT-7B won WMT25** (1st place in
+30/31 language pairs); its successor **HY-MT1.5** (1.8B + 7B, open-sourced
+2025-12-30, arXiv 2512.24092) is the current open offline SOTA. On WMT25,
+HY-MT1.5-7B scores XCOMET-XXL 0.6159 vs Seed-X-PPO-7B 0.4783 and
+Tower-Plus-**72B** 0.4100. Official GGUF builds run locally via llama.cpp;
+the 1.8B quantized (~1GB) matches the NLLB-600M int8 footprint with far
+better zh→en. NLLB-200 (2022) remains the 200-language coverage king but is
+no longer competitive for zh→en quality; Argos (Marian-era) further behind.
+
+### Action items
+
+> **Status: all action items complete (2026-07-15).** Suite 261 → 290
+> tests, ruff-clean; verified end-to-end with a real deck build (Argos
+> active, HY-MT/NLLB skipped as not installed, batch + persistent cache
+> confirmed in the run output and cache file).
+
+- [x] **HY-MT1.5 backend** — new top quality tier (95), opt-in via
+  `uv sync --extra hymt` (llama-cpp-python + GGUF from
+  `tencent/HY-MT1.5-1.8B-GGUF`; 7B overridable via config/env). Official
+  prompt template; recommended sampling params from the model card.
+- [x] **Batch translation** (old TRANSLATION.md roadmap item) — pipeline
+  translated one sentence per call (`process/word_selector.py:193`), and the
+  NLLB backend called CT2 `translate_batch` with a single item
+  (`translate/nllb_backend.py:133`). Added `translate_batch` to the backend
+  contract (native in NLLB, sequential default elsewhere), a cache-aware
+  `TranslationManager.translate_batch`, and the pipeline now batches all
+  example sentences in one deduplicated call.
+- [x] **NLLB decoding guards** — beam_size 4, no_repeat_ngram_size 3, max
+  input/decoding length 256 (all config-overridable).
+- [x] **Deterministic model downloads** — revision pins for NLLB
+  model/tokenizer (`nllb_model_revision` / `nllb_tokenizer_revision`, env
+  `NLLB_CT2_REVISION` / `NLLB_TOKENIZER_REVISION`) and HY-MT
+  (`hymt_revision` / `HYMT_REVISION`); Argos logs the installed zh→en
+  package version at init.
+- [x] **Persistent translation cache** — `data/cache/translations.json`,
+  keyed by backend + language pair + text; toggle via `translation_cache`
+  config (default on). Manager saves after each batch and on cleanup.
+- [x] **Config passthrough bug (new, confirmed)** — `TranslationManager()`
+  was constructed with no config (`main.py:193`), so the documented
+  `nllb_model_repo` / `nllb_tokenizer_repo` YAML keys were dead (only the
+  env vars worked). The loaded config now reaches all backends; regression
+  test added.
+- [x] **Translation config keys** — `preferred_backend`, `prefer_offline`
+  (was hardcoded True), and `translation_cache` wired through main.py and
+  documented in config.yaml.
+- [x] **Docs refresh** — TRANSLATION.md / FEATURES.md / CLAUDE.md / README
+  backend lists, quality table, roadmap checkboxes, extras; CHANGELOG 0.4.0.
+
+### Deferred (recorded, not in this pass)
+
+- [ ] **Pre-import QC workflow** — decision: **no web front end** (non-goal;
+  Anki's Browse window already covers post-import editing). Instead:
+  `--review cards.csv` to emit editable rows before deck build +
+  `--from-review cards.csv` to build from the reviewed file; optional
+  self-contained static HTML card preview for visual skimming.
+- [ ] **Context-aware translation** — all backends translate sentences in
+  isolation; the HY-MT LLM backend makes a previous-sentence-context mode
+  feasible later (pronoun/referent fidelity in literary text).
+
+### Quality validation (2026-07-15, local)
+
+HY-MT1.5-1.8B (official Tencent Q4_K_M GGUF, via Ollama in Docker) tested
+head-to-head against Argos on 7 probe sentences (idioms, proverbs, literary
+register, dialogue). The 1.8B won every discriminating case: 老人 rendered
+correctly ("the old man" vs Argos "old people"), 七上八下 and 天下没有不散的筵席
+translated idiomatically ("all good things must come to an end" vs "there is
+no endless feast"), 冷笑 as "snickered" (Argos: "smiled" — wrong), dialogue
+register natural. ~0.5s/sentence on CPU after model load. Validates the
+backend choice and the 1.8B default.
+
+### Confirmations of earlier findings
+
+- 2026-07-09 audit close-out re-verified this pass: full suite green and
+  ruff-clean via the lint gate (see below for the original checklist).
+- First-pass (2026-07-15 morning) findings folded in above; two were
+  superseded rather than actioned: NLLB's distilled-600M default stays (the
+  HY-MT tier now owns "highest quality"; 1.3B/3.3B remain config/env
+  overrides), and NLLB opt-in discoverability is addressed by documenting
+  HY-MT as the recommended quality extra.
+
+---
+
+## Audit 2026-07-09 (original)
 
 Findings from a full audit of source, tests, packaging, and docs.
 Test suite status at time of audit: **48/48 passing**.

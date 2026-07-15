@@ -8,8 +8,9 @@ The Anki Chinese Deck Builder uses a **pluggable translation architecture** that
 
 ```
 translate/
-├── base.py              # Abstract base class
-├── nllb_backend.py      # NLLB-200 on CTranslate2 (opt-in, highest quality)
+├── base.py              # Abstract base class (translate + translate_batch)
+├── hymt_backend.py      # HY-MT1.5 on llama.cpp (opt-in, highest quality)
+├── nllb_backend.py      # NLLB-200 on CTranslate2 (opt-in)
 ├── argos_backend.py     # Argos Translate (offline neural MT, default)
 ├── cedict_backend.py    # CC-CEDICT word-by-word (fallback)
 └── manager.py           # Translation manager (orchestrator)
@@ -18,28 +19,71 @@ translate/
 **Failure semantics:** a backend that cannot translate raises; it never
 returns the source text. The manager catches the error, tries the next
 backend by quality score, and never caches failures — so a transient error
-can't poison cards with untranslated Chinese.
+can't poison cards with untranslated Chinese. The batch path degrades the
+same way: items a batch fails on go through the per-item fallback chain.
+
+**Batching:** the pipeline collects every selected example sentence and
+translates them in one `translate_batch` call. The manager deduplicates,
+serves cache hits, and hands the rest to the active backend — a single
+CTranslate2 batch call for NLLB (several times faster than per-sentence
+calls on CPU), a sequential loop for backends without a native batch API.
+
+**Persistent cache:** translations are cached across runs in
+`data/cache/translations.json`, keyed by backend + language pair + text, so
+re-running the same book skips re-translation and installing a better
+backend never serves the old backend's output. Disable with
+`translation_cache: false`.
 
 ## Available Backends
 
-### 0. NLLB-200 on CTranslate2 (Offline Neural MT) ⭐ Highest quality
+### 0. HY-MT1.5 on llama.cpp (Offline Neural MT) ⭐ Highest quality
+
+**Quality Score:** 95/100
+
+**Status:** Opt-in — install with `uv sync --extra hymt`
+
+Tencent's Hunyuan-MT-7B won WMT25 (first place in 30/31 language pairs);
+HY-MT1.5 (open-sourced 2025-12-30) is its successor and the current open
+offline state of the art for zh→en. Default here is the official 1.8B GGUF
+build (Q4_K_M, ~1GB) — the same footprint class as NLLB distilled-600M with
+far better literary Chinese.
+
+**Pros:**
+- ✅ Best zh→en quality of any offline backend (WMT25-winning model line)
+- ✅ zh-centric training (Tencent), strong on idioms and dialogue
+- ✅ Fully offline after the one-time GGUF download
+- ✅ 7B build available for more RAM: `hymt_model_repo: tencent/HY-MT1.5-7B-GGUF`
+- ✅ Overridable via config `hymt_model_repo` / `hymt_model_file` /
+  `hymt_revision` or env `HYMT_GGUF_REPO` / `HYMT_GGUF_FILE` / `HYMT_REVISION`
+
+**Cons:**
+- ⚠️ Slower than batched NLLB (LLM decoding; ~0.5s/sentence on CPU for the 1.8B)
+- ⚠️ Tencent community license (not Apache/MIT) — fine for personal use,
+  read the model repo's License.txt before redistribution
+
+### 1. NLLB-200 on CTranslate2 (Offline Neural MT)
 
 **Quality Score:** 90/100
 
 **Status:** Opt-in — install with `uv sync --extra nllb`
 
 **Pros:**
-- ✅ Best zh→en quality of the offline backends
+- ✅ Strong zh→en quality with very fast batched CPU inference
 - ✅ Fully offline after the one-time model download (~1GB distilled-600M)
 - ✅ Runs on the same CTranslate2 engine Argos already uses (no PyTorch at inference)
 - ✅ Model/tokenizer overridable via config keys `nllb_model_repo` /
-  `nllb_tokenizer_repo` or env `NLLB_CT2_MODEL` / `NLLB_TOKENIZER`
+  `nllb_tokenizer_repo` or env `NLLB_CT2_MODEL` / `NLLB_TOKENIZER`;
+  pin downloads with `nllb_model_revision` / `nllb_tokenizer_revision`
+  (env `NLLB_CT2_REVISION` / `NLLB_TOKENIZER_REVISION`)
+- ✅ Decoding guards against NLLB's repetition loops (beam 4,
+  no-repeat-ngram 3, input/decoding length caps; all config-overridable)
 
 **Cons:**
 - ⚠️ Large first-run download
 - ⚠️ Heavier optional dependencies (transformers, huggingface_hub)
+- ⚠️ 2022-era MT model — noticeably below HY-MT1.5 on literary text
 
-### 1. Argos Translate (Offline Neural MT) — Default
+### 2. Argos Translate (Offline Neural MT) — Default
 
 **Quality Score:** 80/100
 
@@ -74,7 +118,7 @@ uv venv --python 3.13
 uv sync
 ```
 
-### 2. CC-CEDICT Word-by-Word (Fallback)
+### 3. CC-CEDICT Word-by-Word (Fallback)
 
 **Quality Score:** 40/100
 
@@ -177,15 +221,26 @@ uv run python main.py --input book.epub --deck "My Deck"
 
 ### Configuration
 
-Future: Add config options in `config.yaml`:
+Translation keys read from `config.yaml` (all optional):
 
 ```yaml
-translation:
-  preferred_backend: "argos"  # argos, cedict, google, deepl, llm
-  fallback_enabled: true
-  timeout: 30  # seconds
-  cache_translations: true
+preferred_backend: hymt      # force one of: hymt, nllb, argos, cedict
+prefer_offline: true         # skip backends that require the network
+translation_cache: true      # persist translations under data/cache/
+
+# Model overrides / reproducibility pins
+hymt_model_repo: tencent/HY-MT1.5-7B-GGUF
+hymt_model_file: "*Q4_K_M.gguf"
+hymt_revision: <commit>
+nllb_model_repo: entai2965/nllb-200-distilled-600M-ctranslate2
+nllb_model_revision: <commit>
+nllb_tokenizer_revision: <commit>
+nllb_beam_size: 4
+nllb_no_repeat_ngram_size: 3
 ```
+
+If `preferred_backend` fails to initialize (e.g. its extra isn't
+installed), the normal quality-ranked order takes over.
 
 ## Troubleshooting
 
@@ -233,8 +288,13 @@ uv sync
 
 | Backend | First Translation | Subsequent |
 |---------|------------------|------------|
+| HY-MT1.5 (1.8B Q4, CPU) | ~4s (model load) | ~0.5s/sentence (measured) |
+| NLLB-200 (600M int8, CPU) | ~3s (model load) | ~0.05s/sentence batched |
 | Argos Translate | ~2s (model load) | ~0.1s/sentence |
 | CC-CEDICT | ~0.01s | ~0.01s/sentence |
+
+Re-runs of the same book are near-instant regardless of backend: the
+persistent cache answers before any model loads a sentence.
 
 ### Quality Comparison
 
@@ -249,19 +309,21 @@ uv sync
 
 ### Planned Backends
 
+- [x] **Local LLM** (llama.cpp, offline, very high quality) — shipped as the
+  HY-MT1.5 backend
 - [ ] **Google Translate API** (online, high quality)
 - [ ] **DeepL API** (online, highest quality)
-- [ ] **Local LLM** (ollama/llama.cpp, offline, very high quality)
 - [ ] **OpenAI GPT-4** (online API, highest quality, costs money)
 - [ ] **Azure Translator** (online, high quality)
 
 ### Features
 
-- [x] Translation caching (repeated sentences translate once per run)
-- [ ] Batch translation (translate multiple sentences at once)
+- [x] Translation caching (in-run + persistent across runs)
+- [x] Batch translation (one CT2 call for all sentences; manager dedupes)
+- [x] User-selected backend preference in config (`preferred_backend`)
+- [ ] Context-aware translation (previous sentence as context via HY-MT)
 - [ ] Translation quality scoring
 - [ ] A/B testing between backends
-- [ ] User-selected backend preference in config
 
 ## Contributing
 
@@ -276,6 +338,6 @@ To add a new backend:
 
 ---
 
-**Last Updated:** 2026-07-09
+**Last Updated:** 2026-07-15
 **Python Compatibility:** 3.9-3.13 (project caps requires-python below 3.14 for Argos)
-**Status:** Stable — NLLB (opt-in) > Argos (default) > CC-CEDICT (fallback)
+**Status:** Stable — HY-MT1.5 (opt-in) > NLLB (opt-in) > Argos (default) > CC-CEDICT (fallback)
