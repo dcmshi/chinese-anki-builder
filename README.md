@@ -14,6 +14,9 @@ Automatically generate Anki flashcards for learning Chinese from EPUB and PDF bo
 - 📝 Generate word-in-sentence Anki cards (target word highlighted in the sentence)
 - 🧩 Optional cloze-deletion cards (`--cloze`)
 - ✅ Pre-import QC: export cards to CSV, edit/delete rows, rebuild (`--review` / `--from-review`)
+- 👀 Static HTML card preview for visual skimming (`--preview`)
+- 🚫 Known-words filtering so decks contain only new vocabulary (`--known-words`)
+- 🔉 Optional word and sentence audio (`--tts`, `--tts-sentences`)
 - 🗣️ Add pinyin (word + sentence, tone marks) and English definitions
 - 🌐 Pluggable translation backends (HY-MT1.5, NLLB-200, Argos Translate neural MT, or CC-CEDICT fallback)
 - 🔊 Optional TTS word audio via gTTS (`--tts`, requires the `tts` extra)
@@ -74,6 +77,9 @@ uv run python main.py --input <file> [options]
 - `--stats` - Export pipeline stats to a JSON file
 - `--cloze` - Build cloze-deletion cards (word blanked out of the sentence)
 - `--tts` - Generate word audio with gTTS (requires internet and `uv sync --extra tts`)
+- `--tts-sentences` - Also generate example-sentence audio
+- `--known-words` - Text file of already-known words to exclude (one per line)
+- `--preview` - Write a static HTML preview of the cards (combines with `--review`)
 - `--review` - Write cards to a CSV for QC and stop before deck build
 - `--from-review` - Build the deck from a reviewed CSV (replaces `--input`)
 

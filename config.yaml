@@ -11,6 +11,12 @@ min_frequency: 2
 
 # TTS audio generation
 enable_tts: false
+# Also generate example-sentence audio (requires enable_tts-style setup)
+enable_sentence_tts: false
+
+# Known words to exclude from selection (text file, one word per line;
+# comma/space separated also accepted; # comments ignored)
+# known_words_file: known_words.txt
 
 # Card style: false = word-in-sentence cards, true = cloze-deletion cards
 cloze: false

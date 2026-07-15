@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.0] - 2026-07-15
+
+### Added
+
+- **Static HTML card preview** (`--preview cards.html`): self-contained
+  page rendering every card front/back with the real card styling
+  (regular and cloze); works alongside `--review` and `--from-review`
+- **Known-words filtering** (`--known-words` / `known_words_file`): plain
+  text list (one per line; comma/space separated accepted; `#` comments)
+  excluded before top-N selection so decks fill with new vocabulary;
+  excluded count exported in stats
+- **Sentence audio** (`--tts-sentences` / `enable_sentence_tts`): gTTS
+  audio for the example sentence, cached and deduplicated across cards.
+  Both note models gain a SentenceAudio field appended last, so decks
+  built before this version reimport with fields still aligned
+
 ## [0.5.0] - 2026-07-15
 
 ### Added

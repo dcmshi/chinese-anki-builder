@@ -22,7 +22,7 @@
 **Card Format**:
 - **Front**: Sentence in Chinese with target word highlighted inline (or a
   cloze deletion with `--cloze`)
-- **Back**: Sentence + pinyin, word pinyin, English definition (CC-CEDICT), sentence translation, optional word audio, chapter (field + `chapter::…` Anki tag)
+- **Back**: Sentence + pinyin, word pinyin, English definition (CC-CEDICT), sentence translation, optional word/sentence audio, chapter (field + `chapter::…` Anki tag)
 
 ## Project Structure
 
@@ -47,6 +47,7 @@ anki-chinese-deck/
 │   ├── hsk_filter.py            # HSK 3.0 level filtering
 │   ├── pinyin_converter.py      # Tone-mark pinyin (converts CEDICT numbers)
 │   ├── review.py                # Pre-import QC CSV export/load
+│   ├── known_words.py           # Known-words list loading (exclusion)
 │   └── sentence_translator.py
 │
 ├── translate/                   # Translation backends
@@ -59,6 +60,7 @@ anki-chinese-deck/
 │
 ├── anki/                        # Deck generation
 │   ├── templates.py             # Card templates (regular + cloze)
+│   ├── preview.py               # Static HTML card preview
 │   └── deck_builder.py
 │
 ├── tts/                         # TTS audio
@@ -68,7 +70,7 @@ anki-chinese-deck/
 │   ├── file_utils.py
 │   └── chinese_utils.py
 │
-└── tests/                       # Unit tests (308 tests)
+└── tests/                       # Unit tests (334 tests)
 ```
 
 ## Design Principles
@@ -129,6 +131,9 @@ uv run python main.py --input book.epub --deck "Beginner" --top-words 300 --min-
 --stats <file>          # Export pipeline stats to JSON
 --cloze                 # Cloze-deletion cards instead of word-in-sentence
 --tts                   # gTTS word audio (requires internet + `uv sync --extra tts`)
+--tts-sentences         # Also generate example-sentence audio
+--known-words <file>    # Exclude already-known words (one per line)
+--preview <html>        # Static HTML preview of the cards (works with --review)
 --review <csv>          # Write cards to a CSV for QC and stop (no deck built)
 --from-review <csv>     # Build the deck from a reviewed CSV (replaces --input)
 ```
@@ -140,8 +145,9 @@ then `--from-review cards.csv` builds the deck — every edited field is
 authoritative, including word pinyin and definition.
 
 Settings read from `config.yaml` (CLI flags override these): `top_words`,
-`min_frequency`, `output_dir`, `enable_tts`, `cloze`, `hsk_levels`,
-`stats_file`, `min_sentence_length`, `max_sentence_length`.
+`min_frequency`, `output_dir`, `enable_tts`, `enable_sentence_tts`,
+`known_words_file`, `cloze`, `hsk_levels`, `stats_file`,
+`min_sentence_length`, `max_sentence_length`.
 CLI > config.yaml > built-in default.
 
 ## Key Implementation Notes
@@ -207,8 +213,8 @@ uv run pytest tests/ -v
 
 ## Status
 
-**Production ready**: Text extraction (EPUB + PDF chapters), tokenization, word selection, HSK filtering, dictionary lookup, pinyin, translation, TTS audio, stats export, deck generation (regular + cloze), pre-import QC review workflow, CLI
+**Production ready**: Text extraction (EPUB + PDF chapters), tokenization, word selection, HSK filtering, known-words filtering, dictionary lookup, pinyin, translation, TTS audio (word + sentence), stats export, deck generation (regular + cloze), pre-import QC review workflow, static HTML preview, CLI
 
-**Pending**: Known-words filtering, sentence audio
+**Pending**: Context-aware translation (see TODO.md deferred items)
 
 See **FEATURES.md** for detailed implementation status, performance metrics, translation architecture, testing info, and recommended settings. See **TODO.md** for the 2026-07-09 audit checklist.

@@ -61,6 +61,12 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 - Optional cloze-deletion card type (--cloze)
 - Pre-import QC review workflow (--review CSV export, --from-review build;
   reviewer edits are authoritative, including word pinyin and definition)
+- Static HTML card preview (--preview): self-contained page rendering every
+  card front/back with the real card styling
+- Known-words filtering (--known-words / known_words_file): excluded before
+  top-N selection so decks fill with genuinely new vocabulary
+- Optional sentence audio via gTTS (--tts-sentences), cached and
+  deduplicated (SentenceAudio field appended last for reimport safety)
 - Optional word audio via gTTS (--tts), cached and bundled as media
 - Deterministic note GUIDs (full 128-bit hash, collision-safe)
 - Chapter on every card (field + `chapter::…` tag)
@@ -76,7 +82,8 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 
 **Configuration & CLI**:
 - YAML configuration support (CLI > config.yaml > defaults)
-- CLI with argparse (--hsk, --stats, --cloze, --tts, --review, --from-review wired)
+- CLI with argparse (--hsk, --stats, --cloze, --tts, --tts-sentences,
+  --known-words, --preview, --review, --from-review wired)
 - Stats export to JSON (counts, coverage, word list)
 - uv-based dependency management
 - Progress bars (tqdm) for long operations

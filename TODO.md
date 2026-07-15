@@ -66,8 +66,14 @@ no longer competitive for zh→en quality; Argos (Marian-era) further behind.
   overrides honored by both note types). Verified end-to-end: 9 exported →
   2 deleted + 1 translation edited → 7-note deck with the edit on the card.
   Optional static HTML preview still open (below).
-- [ ] **Static HTML card preview** — self-contained page rendering cards
-  as they'll look, for visual skimming before/alongside the CSV review.
+- [x] **Static HTML card preview** *(shipped 2026-07-15, follow-up pass)* —
+  `--preview cards.html` writes a self-contained page rendering every card
+  front/back with the real card styling (regular + cloze); combines with
+  `--review` and `--from-review`. Also shipped in the same pass: the two
+  pre-audit pending features — known-words filtering (`--known-words` /
+  `known_words_file`, excluded before top-N selection) and sentence audio
+  (`--tts-sentences` / `enable_sentence_tts`, SentenceAudio field appended
+  last on both models for reimport safety).
 - [ ] **Context-aware translation** — all backends translate sentences in
   isolation; the HY-MT LLM backend makes a previous-sentence-context mode
   feasible later (pronoun/referent fidelity in literary text). Hold until
