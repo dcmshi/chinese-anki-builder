@@ -1,7 +1,7 @@
 """Abstract base class for translation backends."""
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 
 
 class TranslationBackend(ABC):
@@ -71,6 +71,27 @@ class TranslationBackend(ABC):
             True if internet required, False for offline backends
         """
         pass
+
+    def translate_batch(
+        self, texts: List[str], source_lang: str = "zh", target_lang: str = "en"
+    ) -> List[str]:
+        """
+        Translate several texts at once, preserving order.
+
+        Default implementation loops over translate(); backends with a
+        native batch API (e.g. CTranslate2) override this for throughput.
+        Same failure contract as translate(): raise rather than echo the
+        source text, so the manager's fallback chain engages.
+
+        Args:
+            texts: Texts to translate
+            source_lang: Source language code
+            target_lang: Target language code
+
+        Returns:
+            Translations in the same order as the inputs
+        """
+        return [self.translate(text, source_lang, target_lang) for text in texts]
 
     def is_initialized(self) -> bool:
         """

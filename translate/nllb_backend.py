@@ -14,7 +14,7 @@ falls back to Argos. Install the extras to opt in:
 """
 
 import os
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 
 from translate.base import TranslationBackend
 from utils.file_utils import get_data_dir
@@ -54,9 +54,23 @@ class NLLBTranslateBackend(TranslationBackend):
             or os.environ.get("NLLB_TOKENIZER")
             or DEFAULT_TOKENIZER_REPO
         )
+        # Pins for reproducible downloads ("same input + config -> same deck").
+        # None means the repo's current head; once cached, runs are stable.
+        self.model_revision = self.config.get("nllb_model_revision") or os.environ.get(
+            "NLLB_CT2_REVISION"
+        )
+        self.tokenizer_revision = self.config.get("nllb_tokenizer_revision") or os.environ.get(
+            "NLLB_TOKENIZER_REVISION"
+        )
         # int8 keeps the 600M model small/fast on CPU; override for GPU/quality.
         self.device = self.config.get("nllb_device", "cpu")
         self.compute_type = self.config.get("nllb_compute_type", "int8")
+        # Decoding guards: NLLB is prone to repetition loops on noisy input,
+        # and quality degrades sharply past its training sentence lengths.
+        self.beam_size = int(self.config.get("nllb_beam_size", 4))
+        self.no_repeat_ngram_size = int(self.config.get("nllb_no_repeat_ngram_size", 3))
+        self.max_input_length = int(self.config.get("nllb_max_input_length", 256))
+        self.max_decoding_length = int(self.config.get("nllb_max_decoding_length", 256))
 
     def is_available(self) -> bool:
         """Available only when the optional inference + tokenizer deps import."""
@@ -79,7 +93,11 @@ class NLLBTranslateBackend(TranslationBackend):
             model_dir = get_data_dir() / "nllb_ct2_model"
             if not (model_dir / "model.bin").exists():
                 print(f"Downloading NLLB CT2 model '{self.model_repo}' (first run, large)...")
-                snapshot_download(repo_id=self.model_repo, local_dir=str(model_dir))
+                snapshot_download(
+                    repo_id=self.model_repo,
+                    local_dir=str(model_dir),
+                    revision=self.model_revision,
+                )
                 print("NLLB model downloaded.")
             else:
                 print("Using cached NLLB CT2 model")
@@ -87,7 +105,9 @@ class NLLBTranslateBackend(TranslationBackend):
             self.translator = ctranslate2.Translator(
                 str(model_dir), device=self.device, compute_type=self.compute_type
             )
-            self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.tokenizer_repo)
+            self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+                self.tokenizer_repo, revision=self.tokenizer_revision
+            )
             self._initialized = True
             return True
 
@@ -118,6 +138,27 @@ class NLLBTranslateBackend(TranslationBackend):
         if not text or not text.strip():
             return ""
 
+        return self.translate_batch([text], source_lang, target_lang)[0]
+
+    def translate_batch(
+        self, texts: List[str], source_lang: str = "zh", target_lang: str = "en"
+    ) -> List[str]:
+        """Translate many sentences in one CTranslate2 batch call.
+
+        Batching is where CT2 earns its keep: one call for N sentences is
+        several times faster than N single-sentence calls on CPU. Empty
+        inputs map to "" without touching the model. Same raise-don't-echo
+        failure contract as translate().
+        """
+        if not texts:
+            return []
+
+        # Preserve positions of empty inputs; only real text hits the model.
+        indexed = [(i, t) for i, t in enumerate(texts) if t and t.strip()]
+        results = [""] * len(texts)
+        if not indexed:
+            return results
+
         if not self._initialized:
             if not self.initialize():
                 raise RuntimeError("NLLB backend not initialized")
@@ -127,21 +168,31 @@ class NLLBTranslateBackend(TranslationBackend):
 
         # Setting src_lang makes encode() prepend the source language token.
         self.tokenizer.src_lang = src_code
-        source_tokens = self.tokenizer.convert_ids_to_tokens(self.tokenizer.encode(text))
+        batch_tokens = [
+            self.tokenizer.convert_ids_to_tokens(self.tokenizer.encode(t)) for _, t in indexed
+        ]
 
-        # The decoder is forced to start in the target language.
-        results = self.translator.translate_batch(
-            [source_tokens], target_prefix=[[tgt_code]]
+        # The decoder is forced to start in the target language. Length caps
+        # and the no-repeat guard keep NLLB from looping on odd input.
+        batch_results = self.translator.translate_batch(
+            batch_tokens,
+            target_prefix=[[tgt_code]] * len(batch_tokens),
+            beam_size=self.beam_size,
+            no_repeat_ngram_size=self.no_repeat_ngram_size,
+            max_input_length=self.max_input_length,
+            max_decoding_length=self.max_decoding_length,
         )
-        target_tokens = results[0].hypotheses[0]
 
-        # Drop the leading target-language token before decoding.
-        if target_tokens and target_tokens[0] == tgt_code:
-            target_tokens = target_tokens[1:]
+        for (i, _), result in zip(indexed, batch_results):
+            target_tokens = result.hypotheses[0]
+            # Drop the leading target-language token before decoding.
+            if target_tokens and target_tokens[0] == tgt_code:
+                target_tokens = target_tokens[1:]
+            results[i] = self.tokenizer.decode(
+                self.tokenizer.convert_tokens_to_ids(target_tokens)
+            ).strip()
 
-        return self.tokenizer.decode(
-            self.tokenizer.convert_tokens_to_ids(target_tokens)
-        ).strip()
+        return results
 
     def get_name(self) -> str:
         return "NLLB-200 (CTranslate2, Offline Neural MT)"
