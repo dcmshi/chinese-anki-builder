@@ -30,7 +30,7 @@ from process.word_selector import select_top_words, create_word_cards
 from process.hsk_filter import filter_by_hsk, parse_hsk_levels
 from anki.deck_builder import build_deck
 from translate.manager import TranslationManager
-from utils.file_utils import sanitize_filename, write_stats_json
+from utils.file_utils import get_cache_dir, sanitize_filename, write_stats_json
 
 
 def load_config(config_path: str = None) -> dict:
@@ -106,6 +106,7 @@ def process_pipeline(
     cloze: bool = False,
     enable_tts: bool = False,
     hsk_levels: List[int] = None,
+    translation_config: dict = None,
     **kwargs,
 ):
     """
@@ -123,6 +124,9 @@ def process_pipeline(
         cloze: Build cloze-deletion cards instead of word-in-sentence cards
         enable_tts: Generate word audio with gTTS (requires internet + tts extra)
         hsk_levels: Only keep words from these HSK levels (empty/None = all words)
+        translation_config: Raw config dict passed to the translation system
+            (backend overrides, preferred_backend, prefer_offline,
+            translation_cache)
     """
     # Set deck name from filename if not provided
     if deck_name is None:
@@ -190,9 +194,16 @@ def process_pipeline(
 
     # Step 7.5: Initialize translation system
     print("\nInitializing translation system...")
-    translation_manager = TranslationManager()
+    translation_config = translation_config or {}
+    # Persistent cross-run cache (re-running the same book skips
+    # re-translation); disable with `translation_cache: false` in config.
+    cache_path = None
+    if translation_config.get("translation_cache", True):
+        cache_path = get_cache_dir() / "translations.json"
+    translation_manager = TranslationManager(config=translation_config, cache_path=cache_path)
     translation_manager.set_cedict(cedict)
-    if translation_manager.initialize(prefer_offline=True):
+    prefer_offline = translation_config.get("prefer_offline", True)
+    if translation_manager.initialize(prefer_offline=prefer_offline):
         print(f"Active translation backend: {translation_manager.get_active_backend_name()}")
     else:
         print("Warning: No translation backend initialized")
@@ -212,6 +223,9 @@ def process_pipeline(
         stats_out=card_stats,
     )
     print(f"Created {len(cards)} cards with example sentences")
+
+    # Flush the persistent translation cache and release backend models.
+    translation_manager.cleanup()
 
     if not cards:
         print("ERROR: No cards created. No suitable sentences found.")
@@ -378,6 +392,10 @@ def main():
             "hsk_levels": resolve(
                 parse_hsk_levels(args.hsk) if args.hsk else None, ["hsk_levels"], []
             ),
+            # The translation system reads its own keys (preferred_backend,
+            # prefer_offline, translation_cache, model overrides) from the
+            # raw config, so documented YAML keys actually reach the backends.
+            "translation_config": config,
         }
 
         process_pipeline(**params)

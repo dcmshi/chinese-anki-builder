@@ -167,8 +167,10 @@ def create_word_cards(
     # instead of substring-scanning every sentence (O(words x sentences)).
     sentence_index = build_sentence_index(sentences)
 
-    # Progress bar for word card creation
-    for word in tqdm(words, desc="Creating cards", unit="word"):
+    # Phase 1: pick each word's example sentence (no translation yet, so the
+    # translation step below can run as one batch instead of per word).
+    selections = []
+    for word in tqdm(words, desc="Selecting sentences", unit="word"):
         # Check if word has a definition in CEDICT (skip proper nouns, names, etc.)
         if cedict is not None and word not in cedict:
             skipped_no_definition += 1
@@ -187,30 +189,45 @@ def create_word_cards(
         )
 
         if sentence:
-            # Generate sentence translation using translation manager
-            translation = ""
-            if translation_manager is not None:
-                translation = translation_manager.translate(sentence)
-
-            # Generate sentence pinyin
-            sent_pinyin = sentence_to_pinyin(sentence)
-
-            # Tag with the chapter the example sentence came from, if known
-            card_chapter = chapter
-            if sentence_chapters is not None:
-                card_chapter = sentence_chapters.get(sentence, chapter)
-
-            card = WordCard(
-                word=word,
-                sentence=sentence,
-                frequency=word_freq[word],
-                chapter=card_chapter,
-                sentence_translation=translation,
-                sentence_pinyin=sent_pinyin,
-            )
-            cards.append(card)
+            selections.append((word, sentence))
         else:
             skipped_no_sentence += 1
+
+    # Phase 2: translate every selected sentence in one batch call. The
+    # manager dedupes repeats and serves cache hits; managers without a
+    # translate_batch (simple stubs) fall back to per-sentence calls.
+    translations: Dict[str, str] = {}
+    if translation_manager is not None and selections:
+        unique_sentences = list(dict.fromkeys(sent for _, sent in selections))
+        print(f"Translating {len(unique_sentences)} example sentences...")
+        batch = getattr(translation_manager, "translate_batch", None)
+        if callable(batch):
+            translated = batch(unique_sentences)
+        else:
+            translated = [
+                translation_manager.translate(sent)
+                for sent in tqdm(unique_sentences, desc="Translating", unit="sentence")
+            ]
+        translations = dict(zip(unique_sentences, translated))
+
+    # Phase 3: assemble the cards (order still follows the input word list).
+    for word, sentence in tqdm(selections, desc="Creating cards", unit="word"):
+        sent_pinyin = sentence_to_pinyin(sentence)
+
+        # Tag with the chapter the example sentence came from, if known
+        card_chapter = chapter
+        if sentence_chapters is not None:
+            card_chapter = sentence_chapters.get(sentence, chapter)
+
+        card = WordCard(
+            word=word,
+            sentence=sentence,
+            frequency=word_freq[word],
+            chapter=card_chapter,
+            sentence_translation=translations.get(sentence, ""),
+            sentence_pinyin=sent_pinyin,
+        )
+        cards.append(card)
 
     if skipped_no_definition > 0:
         print(f"Skipped {skipped_no_definition} words without dictionary definitions")

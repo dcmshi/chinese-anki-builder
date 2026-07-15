@@ -200,3 +200,54 @@ class TestWordSelector:
         assert card.sentence == "你好世界"
         assert card.frequency == 10
         assert card.chapter == "Chapter 1"
+
+
+class TestBatchedTranslation:
+    """create_word_cards translates all example sentences in one batch."""
+
+    def test_manager_with_translate_batch_is_called_once(self):
+        class BatchManager:
+            def __init__(self):
+                self.batch_calls = []
+                self.single_calls = 0
+
+            def translate(self, text, source_lang="zh", target_lang="en"):
+                self.single_calls += 1
+                return f"single:{text}"
+
+            def translate_batch(self, texts, source_lang="zh", target_lang="en"):
+                self.batch_calls.append(list(texts))
+                return [f"batch:{t}" for t in texts]
+
+        manager = BatchManager()
+        # Both words share one sentence, so the batch must be deduplicated.
+        sentences = ["你好世界这是一个测试句子。"]
+        words = ["你好", "世界"]
+        word_freq = Counter({"你好": 3, "世界": 2})
+
+        cards = create_word_cards(
+            words, sentences, word_freq, cedict=None, translation_manager=manager
+        )
+
+        assert len(cards) == 2
+        assert manager.batch_calls == [["你好世界这是一个测试句子。"]]
+        assert manager.single_calls == 0
+        assert all(c.sentence_translation == "batch:你好世界这是一个测试句子。" for c in cards)
+
+    def test_manager_without_translate_batch_still_works(self):
+        """Simple managers/stubs exposing only translate() keep working."""
+
+        class SingleManager:
+            def translate(self, text, source_lang="zh", target_lang="en"):
+                return f"single:{text}"
+
+        cards = create_word_cards(
+            ["你好"],
+            ["你好世界这是一个测试句子。"],
+            Counter({"你好": 3}),
+            cedict=None,
+            translation_manager=SingleManager(),
+        )
+
+        assert len(cards) == 1
+        assert cards[0].sentence_translation == "single:你好世界这是一个测试句子。"

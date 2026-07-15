@@ -55,6 +55,9 @@ def book_epub(tmp_path):
 class StubTranslationManager:
     """Offline stand-in matching the TranslationManager surface main.py uses."""
 
+    def __init__(self, config=None, cache_path=None, **kwargs):
+        pass
+
     def set_cedict(self, cedict):
         pass
 
@@ -66,6 +69,12 @@ class StubTranslationManager:
 
     def translate(self, text, source_lang="zh", target_lang="en"):
         return f"[translation of {text[:8]}]"
+
+    def translate_batch(self, texts, source_lang="zh", target_lang="en"):
+        return [self.translate(text, source_lang, target_lang) for text in texts]
+
+    def cleanup(self):
+        pass
 
 
 @pytest.fixture

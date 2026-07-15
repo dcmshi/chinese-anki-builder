@@ -23,3 +23,19 @@ stats_file: null  # Set to a path to export stats (e.g., "stats.json")
 # Minimum sentence length for context
 min_sentence_length: 10
 max_sentence_length: 100
+
+# Translation
+# Backends ranked by quality: HY-MT1.5 (95, opt-in: uv sync --extra hymt)
+# > NLLB-200 (90, opt-in: uv sync --extra nllb) > Argos (80, default)
+# > CC-CEDICT word-by-word (40, always available).
+# preferred_backend: hymt      # force one of: hymt, nllb, argos, cedict
+# prefer_offline: true         # skip backends that need the network
+# translation_cache: true      # persist translations under data/cache/
+#
+# Model overrides (all optional; env vars also work, see TRANSLATION.md):
+# hymt_model_repo: tencent/HY-MT1.5-7B-GGUF   # default: 1.8B build
+# hymt_model_file: "*Q4_K_M.gguf"             # glob against the repo files
+# hymt_revision: <commit>                     # pin for reproducible downloads
+# nllb_model_repo: entai2965/nllb-200-distilled-600M-ctranslate2
+# nllb_model_revision: <commit>
+# nllb_tokenizer_revision: <commit>
