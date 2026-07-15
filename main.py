@@ -28,6 +28,7 @@ from process.tokenizer import tokenize_text, compute_word_frequency, filter_mult
 from process.cedict_loader import load_cedict
 from process.word_selector import select_top_words, create_word_cards
 from process.hsk_filter import filter_by_hsk, parse_hsk_levels
+from process.review import export_cards_to_csv, load_cards_from_csv
 from anki.deck_builder import build_deck
 from translate.manager import TranslationManager
 from utils.file_utils import get_cache_dir, sanitize_filename, write_stats_json
@@ -94,6 +95,43 @@ def extract_book(input_path: str):
     return chapters
 
 
+def generate_word_audio(cards) -> List[str]:
+    """
+    Generate gTTS word audio for cards (requires internet + the tts extra).
+
+    Sets card.audio_filename on success; gives up after repeated failures
+    so a dead network doesn't stall the build.
+
+    Args:
+        cards: WordCard list to generate audio for
+
+    Returns:
+        Paths of generated media files to bundle into the .apkg
+    """
+    from tts.gtts_generator import get_or_create_audio, is_available as tts_available
+
+    if not tts_available():
+        print("Warning: gTTS not installed (uv sync --extra tts); skipping audio")
+        return []
+
+    media_files = []
+    print("\nGenerating TTS audio (requires internet)...")
+    consecutive_failures = 0
+    for card in tqdm(cards, desc="Generating audio", unit="card"):
+        audio_path = get_or_create_audio(card.word)
+        if audio_path is not None:
+            card.audio_filename = audio_path.name
+            media_files.append(str(audio_path))
+            consecutive_failures = 0
+        else:
+            consecutive_failures += 1
+            if consecutive_failures >= 5:
+                print("Warning: repeated TTS failures; continuing without audio")
+                break
+    print(f"Audio generated for {len(media_files)} of {len(cards)} cards")
+    return media_files
+
+
 def process_pipeline(
     input_path: str,
     deck_name: str = None,
@@ -107,6 +145,7 @@ def process_pipeline(
     enable_tts: bool = False,
     hsk_levels: List[int] = None,
     translation_config: dict = None,
+    review_file: str = None,
     **kwargs,
 ):
     """
@@ -127,6 +166,8 @@ def process_pipeline(
         translation_config: Raw config dict passed to the translation system
             (backend overrides, preferred_backend, prefer_offline,
             translation_cache)
+        review_file: Write cards to this CSV for pre-import QC and stop
+            before TTS/deck build (resume with --from-review)
     """
     # Set deck name from filename if not provided
     if deck_name is None:
@@ -231,28 +272,17 @@ def process_pipeline(
         print("ERROR: No cards created. No suitable sentences found.")
         sys.exit(1)
 
-    # Step 8.5: Generate TTS audio (optional, requires internet)
-    media_files = []
-    if enable_tts:
-        from tts.gtts_generator import get_or_create_audio, is_available as tts_available
+    # Step 8.4: Pre-import QC stop — write the review file and end the run
+    # before TTS/deck build, so deleted rows never cost audio downloads.
+    if review_file:
+        review_path = export_cards_to_csv(cards, review_file, cedict=cedict)
+        print(f"\nReview file written to {review_path}")
+        print("Edit or delete rows (blank word/sentence = drop), then build with:")
+        print(f'  uv run python main.py --from-review "{review_path}" --deck "{deck_name}"')
+        return
 
-        if not tts_available():
-            print("Warning: gTTS not installed (uv sync --extra tts); skipping audio")
-        else:
-            print("\nGenerating TTS audio (requires internet)...")
-            consecutive_failures = 0
-            for card in tqdm(cards, desc="Generating audio", unit="card"):
-                audio_path = get_or_create_audio(card.word)
-                if audio_path is not None:
-                    card.audio_filename = audio_path.name
-                    media_files.append(str(audio_path))
-                    consecutive_failures = 0
-                else:
-                    consecutive_failures += 1
-                    if consecutive_failures >= 5:
-                        print("Warning: repeated TTS failures; continuing without audio")
-                        break
-            print(f"Audio generated for {len(media_files)} of {len(cards)} cards")
+    # Step 8.5: Generate TTS audio (optional, requires internet)
+    media_files = generate_word_audio(cards) if enable_tts else []
 
     # Step 9: Build Anki deck. The deck keeps its display name; only the
     # filename is sanitized (deck names like "A/B: test" are valid in Anki
@@ -298,6 +328,54 @@ def process_pipeline(
     print("=" * 60)
 
 
+def build_from_review(
+    review_file: str,
+    deck_name: str = None,
+    output_dir: str = "output",
+    cloze: bool = False,
+    enable_tts: bool = False,
+):
+    """
+    Build a deck straight from a reviewed CSV — no extraction, selection,
+    or translation. Every field the reviewer edited is authoritative.
+
+    Args:
+        review_file: CSV written by --review (and hand-edited)
+        deck_name: Name for the Anki deck (default: review filename)
+        output_dir: Output directory
+        cloze: Build cloze-deletion cards instead of word-in-sentence cards
+        enable_tts: Generate word audio with gTTS (requires internet + tts extra)
+    """
+    if deck_name is None:
+        deck_name = Path(review_file).stem
+
+    print("=" * 60)
+    print(f"Building Anki deck from review file: {deck_name}")
+    print("=" * 60)
+
+    cards = load_cards_from_csv(review_file)
+    print(f"Loaded {len(cards)} reviewed cards from {review_file}")
+
+    # CEDICT still backs any blank pinyin/definition cells (e.g. rows the
+    # reviewer added by hand).
+    print("\nLoading CC-CEDICT dictionary...")
+    cedict = load_cedict()
+
+    media_files = generate_word_audio(cards) if enable_tts else []
+
+    print("\nBuilding Anki deck...")
+    output_path = Path(output_dir) / f"{sanitize_filename(deck_name)}.apkg"
+    build_deck(
+        deck_name, cards, cedict, str(output_path), cloze=cloze, media_files=media_files
+    )
+
+    print("\n" + "=" * 60)
+    print("✓ Deck generation complete!")
+    print(f"✓ Output: {output_path}")
+    print(f"✓ Total cards: {len(cards)}")
+    print("=" * 60)
+
+
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -305,7 +383,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument("--input", "-i", required=True, help="Input EPUB or PDF file")
+    parser.add_argument(
+        "--input", "-i", help="Input EPUB or PDF file (required unless --from-review)"
+    )
 
     parser.add_argument("--deck", "-d", help="Deck name (default: filename)")
 
@@ -366,7 +446,29 @@ def main():
         help="Generate word audio with gTTS (requires internet and the tts extra)",
     )
 
+    parser.add_argument(
+        "--review",
+        default=None,
+        metavar="CSV",
+        help="Write cards to this CSV for QC and stop before deck build "
+        "(edit/delete rows, then use --from-review)",
+    )
+
+    parser.add_argument(
+        "--from-review",
+        default=None,
+        metavar="CSV",
+        help="Build the deck from a reviewed CSV (skips extraction and translation)",
+    )
+
     args = parser.parse_args()
+
+    if args.from_review and args.input:
+        parser.error("--from-review builds from the review file; do not also pass --input")
+    if args.from_review and args.review:
+        parser.error("--review and --from-review cannot be combined")
+    if not args.from_review and not args.input:
+        parser.error("--input is required (or use --from-review)")
 
     # Everything from config loading onward sits inside the error handler so
     # user-input problems (missing --config file, bad --hsk spec) print a
@@ -377,6 +479,16 @@ def main():
 
         def resolve(cli_value, config_keys, default):
             return resolve_setting(cli_value, config, config_keys, default)
+
+        if args.from_review:
+            build_from_review(
+                args.from_review,
+                deck_name=resolve(args.deck, ["deck_name"], None),
+                output_dir=resolve(args.output, ["output_dir"], "output"),
+                cloze=resolve(args.cloze, ["cloze"], False),
+                enable_tts=resolve(args.tts, ["enable_tts"], False),
+            )
+            return
 
         params = {
             "input_path": args.input,
@@ -396,6 +508,7 @@ def main():
             # prefer_offline, translation_cache, model overrides) from the
             # raw config, so documented YAML keys actually reach the backends.
             "translation_config": config,
+            "review_file": args.review,
         }
 
         process_pipeline(**params)

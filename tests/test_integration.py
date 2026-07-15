@@ -164,3 +164,26 @@ class TestFullPipeline:
         )
 
         assert (tmp_path / "out" / "A_B_ test_.apkg").exists()
+
+    def test_review_flag_stops_before_deck_build(self, book_epub, offline_pipeline, tmp_path):
+        """--review writes the QC file and ends the run: no .apkg, no TTS."""
+        from process.review import load_cards_from_csv
+
+        review_csv = tmp_path / "cards.csv"
+        process_pipeline(
+            input_path=str(book_epub),
+            deck_name="ReviewTest",
+            top_words=8,
+            min_freq=1,
+            output_dir=str(tmp_path / "out"),
+            review_file=str(review_csv),
+        )
+
+        assert review_csv.exists()
+        assert not (tmp_path / "out" / "ReviewTest.apkg").exists()
+
+        cards = load_cards_from_csv(review_csv)
+        assert 0 < len(cards) <= 8
+        for card in cards:
+            assert card.sentence_translation.startswith("[translation of")
+            assert card.definition == "test definition"

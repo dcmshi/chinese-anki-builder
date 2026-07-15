@@ -20,6 +20,10 @@ class WordCard:
     chapter: str = ""
     sentence_translation: str = ""
     sentence_pinyin: str = ""
+    # Optional overrides (set by the --from-review workflow); when empty,
+    # deck building resolves both from CC-CEDICT as usual.
+    word_pinyin: str = ""
+    definition: str = ""
     audio_filename: str = ""  # media filename for [sound:...], set by TTS step
 
     def __repr__(self):

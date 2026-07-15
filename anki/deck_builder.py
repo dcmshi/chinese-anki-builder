@@ -136,20 +136,21 @@ def create_anki_note(
     Returns:
         genanki.Note object
     """
-    # Get pinyin for the word
-    pinyin = word_to_pinyin(card.word, cedict)
+    # Word pinyin: reviewer override wins, otherwise CEDICT/pypinyin
+    pinyin = card.word_pinyin or word_to_pinyin(card.word, cedict)
 
     # Get sentence pinyin
     sentence_pinyin = card.sentence_pinyin or ""
 
-    # Get definition from CEDICT
-    definition = ""
-    if card.word in cedict:
-        definition = cedict[card.word].get_first_definition()
-    else:
-        # Fallback for words not in dictionary (shouldn't happen after filtering)
-        definition = "[Definition not found in CC-CEDICT]"
-        print(f"Warning: No definition found for '{card.word}'")
+    # Definition: reviewer override wins, otherwise CEDICT
+    definition = card.definition
+    if not definition:
+        if card.word in cedict:
+            definition = cedict[card.word].get_first_definition()
+        else:
+            # Fallback for words not in dictionary (shouldn't happen after filtering)
+            definition = "[Definition not found in CC-CEDICT]"
+            print(f"Warning: No definition found for '{card.word}'")
 
     # Get sentence translation
     sentence_translation = card.sentence_translation or ""
@@ -199,13 +200,14 @@ def create_cloze_note(
     Returns:
         genanki.Note object
     """
-    pinyin = word_to_pinyin(card.word, cedict)
+    pinyin = card.word_pinyin or word_to_pinyin(card.word, cedict)
 
-    definition = ""
-    if card.word in cedict:
-        definition = cedict[card.word].get_first_definition()
-    else:
-        definition = "[Definition not found in CC-CEDICT]"
+    definition = card.definition
+    if not definition:
+        if card.word in cedict:
+            definition = cedict[card.word].get_first_definition()
+        else:
+            definition = "[Definition not found in CC-CEDICT]"
 
     tag = chapter_to_tag(card.chapter)
 
