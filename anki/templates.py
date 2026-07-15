@@ -33,6 +33,10 @@ BACK_TEMPLATE = """
 <div class="audio">{{Audio}}</div>
 {{/Audio}}
 
+{{#SentenceAudio}}
+<div class="audio">{{SentenceAudio}}</div>
+{{/SentenceAudio}}
+
 {{#Chapter}}
 <div class="chapter-tag">Chapter: {{Chapter}}</div>
 {{/Chapter}}
@@ -149,6 +153,10 @@ CLOZE_BACK_TEMPLATE = """
 <div class="audio">{{Audio}}</div>
 {{/Audio}}
 
+{{#SentenceAudio}}
+<div class="audio">{{SentenceAudio}}</div>
+{{/SentenceAudio}}
+
 {{#Chapter}}
 <div class="chapter-tag">Chapter: {{Chapter}}</div>
 {{/Chapter}}
@@ -175,6 +183,9 @@ def get_chinese_cloze_model():
             {"name": "SentenceTranslation"},
             {"name": "Audio"},
             {"name": "Chapter"},
+            # Appended last so decks built before sentence audio existed
+            # reimport with fields still aligned.
+            {"name": "SentenceAudio"},
         ],
         templates=[
             {
@@ -206,6 +217,9 @@ def get_chinese_model():
             {"name": "SentenceTranslation"},
             {"name": "Audio"},
             {"name": "Chapter"},
+            # Appended last so decks built before sentence audio existed
+            # reimport with fields still aligned.
+            {"name": "SentenceAudio"},
         ],
         templates=[
             {

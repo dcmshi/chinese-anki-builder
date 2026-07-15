@@ -117,6 +117,23 @@ def chapter_to_tag(chapter: str) -> str:
     return f"chapter::{sanitized}" if sanitized else ""
 
 
+def resolve_word_pinyin(card: WordCard, cedict: Dict[str, DictEntry]) -> str:
+    """Reviewer override wins, otherwise CEDICT/pypinyin tone-mark pinyin."""
+    return card.word_pinyin or word_to_pinyin(card.word, cedict)
+
+
+def resolve_definition(card: WordCard, cedict: Dict[str, DictEntry], warn: bool = False) -> str:
+    """Reviewer override wins, otherwise the preferred CEDICT sense."""
+    if card.definition:
+        return card.definition
+    if cedict and card.word in cedict:
+        return cedict[card.word].get_first_definition()
+    # Fallback for words not in dictionary (shouldn't happen after filtering)
+    if warn:
+        print(f"Warning: No definition found for '{card.word}'")
+    return "[Definition not found in CC-CEDICT]"
+
+
 def create_anki_note(
     card: WordCard,
     cedict: Dict[str, DictEntry],
@@ -136,27 +153,20 @@ def create_anki_note(
     Returns:
         genanki.Note object
     """
-    # Word pinyin: reviewer override wins, otherwise CEDICT/pypinyin
-    pinyin = card.word_pinyin or word_to_pinyin(card.word, cedict)
+    pinyin = resolve_word_pinyin(card, cedict)
+    definition = resolve_definition(card, cedict, warn=True)
 
     # Get sentence pinyin
     sentence_pinyin = card.sentence_pinyin or ""
 
-    # Definition: reviewer override wins, otherwise CEDICT
-    definition = card.definition
-    if not definition:
-        if card.word in cedict:
-            definition = cedict[card.word].get_first_definition()
-        else:
-            # Fallback for words not in dictionary (shouldn't happen after filtering)
-            definition = "[Definition not found in CC-CEDICT]"
-            print(f"Warning: No definition found for '{card.word}'")
-
     # Get sentence translation
     sentence_translation = card.sentence_translation or ""
 
-    # Audio reference (media file itself ships via the package's media_files)
+    # Audio references (media files themselves ship via the package's media_files)
     audio = f"[sound:{card.audio_filename}]" if card.audio_filename else ""
+    sentence_audio = (
+        f"[sound:{card.sentence_audio_filename}]" if card.sentence_audio_filename else ""
+    )
 
     # Chapter as a real Anki tag (in addition to the field) so decks can be
     # filtered/studied per chapter in Anki's browser.
@@ -177,6 +187,7 @@ def create_anki_note(
             sentence_translation,  # SentenceTranslation
             audio,  # Audio
             card.chapter,  # Chapter
+            sentence_audio,  # SentenceAudio (appended last: safest for reimports)
         ],
         guid=generate_note_guid(card.word, card.sentence),
     )
@@ -200,18 +211,15 @@ def create_cloze_note(
     Returns:
         genanki.Note object
     """
-    pinyin = card.word_pinyin or word_to_pinyin(card.word, cedict)
-
-    definition = card.definition
-    if not definition:
-        if card.word in cedict:
-            definition = cedict[card.word].get_first_definition()
-        else:
-            definition = "[Definition not found in CC-CEDICT]"
+    pinyin = resolve_word_pinyin(card, cedict)
+    definition = resolve_definition(card, cedict)
 
     tag = chapter_to_tag(card.chapter)
 
     audio = f"[sound:{card.audio_filename}]" if card.audio_filename else ""
+    sentence_audio = (
+        f"[sound:{card.sentence_audio_filename}]" if card.sentence_audio_filename else ""
+    )
 
     # Distinct GUID namespace so a cloze deck and a regular deck built from
     # the same book never collide on import.
@@ -227,6 +235,7 @@ def create_cloze_note(
             card.sentence_translation or "",  # SentenceTranslation
             audio,  # Audio
             card.chapter,  # Chapter
+            sentence_audio,  # SentenceAudio (appended last: safest for reimports)
         ],
         guid=generate_note_guid(card.word, f"cloze::{card.sentence}"),
     )

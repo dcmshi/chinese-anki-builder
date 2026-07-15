@@ -29,7 +29,9 @@ from process.cedict_loader import load_cedict
 from process.word_selector import select_top_words, create_word_cards
 from process.hsk_filter import filter_by_hsk, parse_hsk_levels
 from process.review import export_cards_to_csv, load_cards_from_csv
+from process.known_words import load_known_words
 from anki.deck_builder import build_deck
+from anki.preview import export_cards_to_html
 from translate.manager import TranslationManager
 from utils.file_utils import get_cache_dir, sanitize_filename, write_stats_json
 
@@ -95,15 +97,18 @@ def extract_book(input_path: str):
     return chapters
 
 
-def generate_word_audio(cards) -> List[str]:
+def generate_audio_files(cards, words: bool = True, sentences: bool = False) -> List[str]:
     """
-    Generate gTTS word audio for cards (requires internet + the tts extra).
+    Generate gTTS audio for cards (requires internet + the tts extra).
 
-    Sets card.audio_filename on success; gives up after repeated failures
-    so a dead network doesn't stall the build.
+    Sets card.audio_filename / card.sentence_audio_filename on success;
+    gives up after repeated failures so a dead network doesn't stall the
+    build. Media paths are deduplicated (cards can share a sentence).
 
     Args:
         cards: WordCard list to generate audio for
+        words: Generate word audio (--tts)
+        sentences: Generate example-sentence audio (--tts-sentences)
 
     Returns:
         Paths of generated media files to bundle into the .apkg
@@ -115,20 +120,42 @@ def generate_word_audio(cards) -> List[str]:
         return []
 
     media_files = []
+    seen = set()
+
+    def add_media(path):
+        if str(path) not in seen:
+            seen.add(str(path))
+            media_files.append(str(path))
+
     print("\nGenerating TTS audio (requires internet)...")
     consecutive_failures = 0
+    generated_cards = 0
     for card in tqdm(cards, desc="Generating audio", unit="card"):
-        audio_path = get_or_create_audio(card.word)
-        if audio_path is not None:
-            card.audio_filename = audio_path.name
-            media_files.append(str(audio_path))
+        card_ok = True
+        if words:
+            audio_path = get_or_create_audio(card.word)
+            if audio_path is not None:
+                card.audio_filename = audio_path.name
+                add_media(audio_path)
+            else:
+                card_ok = False
+        if sentences:
+            sentence_path = get_or_create_audio(card.sentence)
+            if sentence_path is not None:
+                card.sentence_audio_filename = sentence_path.name
+                add_media(sentence_path)
+            else:
+                card_ok = False
+
+        if card_ok:
+            generated_cards += 1
             consecutive_failures = 0
         else:
             consecutive_failures += 1
             if consecutive_failures >= 5:
                 print("Warning: repeated TTS failures; continuing without audio")
                 break
-    print(f"Audio generated for {len(media_files)} of {len(cards)} cards")
+    print(f"Audio generated for {generated_cards} of {len(cards)} cards")
     return media_files
 
 
@@ -146,6 +173,9 @@ def process_pipeline(
     hsk_levels: List[int] = None,
     translation_config: dict = None,
     review_file: str = None,
+    preview_file: str = None,
+    known_words_file: str = None,
+    enable_sentence_tts: bool = False,
     **kwargs,
 ):
     """
@@ -168,6 +198,10 @@ def process_pipeline(
             translation_cache)
         review_file: Write cards to this CSV for pre-import QC and stop
             before TTS/deck build (resume with --from-review)
+        preview_file: Write a static HTML preview of the cards to this path
+        known_words_file: Text file of already-known words to exclude from
+            selection (one per line; comma/space separated also accepted)
+        enable_sentence_tts: Also generate example-sentence audio with gTTS
     """
     # Set deck name from filename if not provided
     if deck_name is None:
@@ -220,9 +254,21 @@ def process_pipeline(
         )
         print(f"Words within HSK levels: {len(multi_char_freq)}")
 
+    # Step 5.7: Known-words exclusion (optional) -- like HSK filtering, this
+    # restricts the pool BEFORE top-N selection so the deck still gets the
+    # full requested count of genuinely new words.
+    exclude_words = set()
+    known_in_book = 0
+    if known_words_file:
+        exclude_words = load_known_words(known_words_file)
+        known_in_book = sum(1 for word in multi_char_freq if word in exclude_words)
+        print(f"\nExcluding {len(exclude_words)} known words ({known_in_book} occur in this book)")
+
     # Step 6: Select top words
     print(f"\nSelecting top {top_words} words...")
-    selected_words = select_top_words(multi_char_freq, top_n=top_words, min_freq=min_freq)
+    selected_words = select_top_words(
+        multi_char_freq, top_n=top_words, min_freq=min_freq, exclude_words=exclude_words
+    )
     print(f"Selected {len(selected_words)} words")
 
     if not selected_words:
@@ -272,6 +318,14 @@ def process_pipeline(
         print("ERROR: No cards created. No suitable sentences found.")
         sys.exit(1)
 
+    # Step 8.3: Static HTML preview (optional) — written whether or not the
+    # run continues, so it can accompany the CSV review or a normal build.
+    if preview_file:
+        preview_path = export_cards_to_html(
+            cards, preview_file, cedict=cedict, deck_name=deck_name, cloze=cloze
+        )
+        print(f"\nPreview written to {preview_path}")
+
     # Step 8.4: Pre-import QC stop — write the review file and end the run
     # before TTS/deck build, so deleted rows never cost audio downloads.
     if review_file:
@@ -282,7 +336,11 @@ def process_pipeline(
         return
 
     # Step 8.5: Generate TTS audio (optional, requires internet)
-    media_files = generate_word_audio(cards) if enable_tts else []
+    media_files = (
+        generate_audio_files(cards, words=enable_tts, sentences=enable_sentence_tts)
+        if (enable_tts or enable_sentence_tts)
+        else []
+    )
 
     # Step 9: Build Anki deck. The deck keeps its display name; only the
     # filename is sanitized (deck names like "A/B: test" are valid in Anki
@@ -309,6 +367,7 @@ def process_pipeline(
             "cards_created": len(cards),
             "skipped_no_definition": card_stats.get("skipped_no_definition", 0),
             "skipped_no_sentence": card_stats.get("skipped_no_sentence", 0),
+            "known_words_excluded": known_in_book,
             "token_coverage": round(covered_tokens / stats.total_words, 4)
             if stats.total_words
             else 0.0,
@@ -334,6 +393,8 @@ def build_from_review(
     output_dir: str = "output",
     cloze: bool = False,
     enable_tts: bool = False,
+    enable_sentence_tts: bool = False,
+    preview_file: str = None,
 ):
     """
     Build a deck straight from a reviewed CSV — no extraction, selection,
@@ -345,6 +406,8 @@ def build_from_review(
         output_dir: Output directory
         cloze: Build cloze-deletion cards instead of word-in-sentence cards
         enable_tts: Generate word audio with gTTS (requires internet + tts extra)
+        enable_sentence_tts: Also generate example-sentence audio with gTTS
+        preview_file: Write a static HTML preview of the reviewed cards
     """
     if deck_name is None:
         deck_name = Path(review_file).stem
@@ -361,7 +424,17 @@ def build_from_review(
     print("\nLoading CC-CEDICT dictionary...")
     cedict = load_cedict()
 
-    media_files = generate_word_audio(cards) if enable_tts else []
+    if preview_file:
+        preview_path = export_cards_to_html(
+            cards, preview_file, cedict=cedict, deck_name=deck_name, cloze=cloze
+        )
+        print(f"Preview written to {preview_path}")
+
+    media_files = (
+        generate_audio_files(cards, words=enable_tts, sentences=enable_sentence_tts)
+        if (enable_tts or enable_sentence_tts)
+        else []
+    )
 
     print("\nBuilding Anki deck...")
     output_path = Path(output_dir) / f"{sanitize_filename(deck_name)}.apkg"
@@ -447,6 +520,27 @@ def main():
     )
 
     parser.add_argument(
+        "--tts-sentences",
+        action="store_true",
+        default=None,
+        help="Also generate example-sentence audio with gTTS",
+    )
+
+    parser.add_argument(
+        "--known-words",
+        default=None,
+        metavar="FILE",
+        help="Text file of already-known words to exclude (one per line)",
+    )
+
+    parser.add_argument(
+        "--preview",
+        default=None,
+        metavar="HTML",
+        help="Write a static HTML preview of the cards (works with --review too)",
+    )
+
+    parser.add_argument(
         "--review",
         default=None,
         metavar="CSV",
@@ -487,6 +581,10 @@ def main():
                 output_dir=resolve(args.output, ["output_dir"], "output"),
                 cloze=resolve(args.cloze, ["cloze"], False),
                 enable_tts=resolve(args.tts, ["enable_tts"], False),
+                enable_sentence_tts=resolve(
+                    args.tts_sentences, ["enable_sentence_tts"], False
+                ),
+                preview_file=args.preview,
             )
             return
 
@@ -509,6 +607,11 @@ def main():
             # raw config, so documented YAML keys actually reach the backends.
             "translation_config": config,
             "review_file": args.review,
+            "preview_file": args.preview,
+            "known_words_file": resolve(args.known_words, ["known_words_file"], None),
+            "enable_sentence_tts": resolve(
+                args.tts_sentences, ["enable_sentence_tts"], False
+            ),
         }
 
         process_pipeline(**params)
