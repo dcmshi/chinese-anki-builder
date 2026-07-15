@@ -30,6 +30,12 @@ nllb = [
     "transformers>=4.40.0",
     "huggingface_hub>=0.23.0",
 ]
+# Highest-quality offline translation: Tencent HY-MT1.5 (WMT25-winning line)
+# as a GGUF model on llama.cpp. ~1GB download for the default 1.8B Q4_K_M.
+hymt = [
+    "llama-cpp-python>=0.3.0",
+    "huggingface_hub>=0.23.0",
+]
 
 [project.scripts]
 anki-chinese = "main:main"
