@@ -38,12 +38,16 @@ class ArgosTranslateBackend(TranslationBackend):
             # index is a network call, and doing it unconditionally made every
             # run (and offline runs with a cached model) depend on the network.
             installed_packages = argostranslate.package.get_installed_packages()
-            already_installed = any(
-                pkg.from_code == "zh" and pkg.to_code == "en" for pkg in installed_packages
+            installed_zh_en = next(
+                (pkg for pkg in installed_packages if pkg.from_code == "zh" and pkg.to_code == "en"),
+                None,
             )
 
-            if already_installed:
-                print("Using cached Argos Translate model")
+            if installed_zh_en is not None:
+                # Log the exact package version for reproducibility: Argos has
+                # no revision pinning, so the version line is the audit trail.
+                version = getattr(installed_zh_en, "package_version", "unknown")
+                print(f"Using cached Argos Translate model (zh->en {version})")
             else:
                 # Update package index (network) only when a download is needed
                 print("Updating Argos Translate package index...")
