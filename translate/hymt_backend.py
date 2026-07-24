@@ -163,8 +163,13 @@ class HYMTTranslateBackend(TranslationBackend):
 
         Exists so the manager's batch path works uniformly; the per-call
         model state is reused, which is where the actual speedup lives.
+
+        Inherits the base per-item failure contract: one echoed or malformed
+        sentence yields "" for that item only. Raising here would send the
+        whole book to the fallback chain (a listwise comprehension used to),
+        so a single bad sentence downgraded every card's translation.
         """
-        return [self.translate(text, source_lang, target_lang) for text in texts]
+        return super().translate_batch(texts, source_lang, target_lang)
 
     def get_name(self) -> str:
         return "HY-MT1.5 (llama.cpp, Offline Neural MT)"

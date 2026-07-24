@@ -4,7 +4,7 @@ import requests
 import gzip
 from pathlib import Path
 from typing import Dict, List, Optional
-from utils.file_utils import get_data_dir
+from utils.file_utils import atomic_write_bytes, get_data_dir
 
 
 CEDICT_URL = "https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz"
@@ -67,8 +67,9 @@ def download_cedict(force: bool = False) -> Path:
             f"Re-run to retry, or place a cedict.txt manually at {dict_path}."
         ) from e
 
-    # Write to file
-    dict_path.write_bytes(decompressed_data)
+    # Write atomically: a half-written dictionary parses fine and is then
+    # trusted forever, silently missing entries.
+    atomic_write_bytes(dict_path, decompressed_data)
 
     print(f"CC-CEDICT downloaded to {dict_path}")
     return dict_path

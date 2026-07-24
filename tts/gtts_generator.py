@@ -9,7 +9,11 @@ from pathlib import Path
 import hashlib
 from typing import Optional
 
-from utils.file_utils import get_cache_dir
+from utils.file_utils import atomic_output_path, get_cache_dir
+
+# Voice used unless a caller overrides it. Kept out of the cache key so
+# existing caches stay valid (see get_audio_filename).
+DEFAULT_LANG = "zh-CN"
 
 
 def _load_gtts():
@@ -60,8 +64,10 @@ def generate_audio(text: str, output_path: Path, lang: str = "zh-CN") -> bool:
 
     try:
         tts = gtts_cls(text=text, lang=lang)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        tts.save(str(output_path))
+        # Write via a temp file: a download interrupted mid-save would
+        # otherwise leave a truncated MP3 that the cache serves forever.
+        with atomic_output_path(output_path) as tmp:
+            tts.save(str(tmp))
         return True
     except Exception as e:
         print(f"TTS generation failed for '{text}': {e}")

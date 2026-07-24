@@ -10,7 +10,7 @@ import requests
 from pathlib import Path
 from typing import Set, List, Optional
 
-from utils.file_utils import ensure_dir, get_data_dir
+from utils.file_utils import atomic_write_bytes, ensure_dir, get_data_dir
 
 # Raw files inside the krmanik/HSK-3.0 repo ("New HSK (2025)/HSK Words/").
 HSK_WORDLIST_URL_TEMPLATE = (
@@ -93,7 +93,8 @@ def download_hsk_list(level: int, cache_dir: Optional[Path] = None, force: bool 
             f"per line) manually at {path}."
         ) from e
 
-    path.write_bytes(response.content)
+    # Atomic: a truncated list parses fine and is then trusted forever.
+    atomic_write_bytes(path, response.content)
     return path
 
 

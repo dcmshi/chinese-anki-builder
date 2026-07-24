@@ -50,6 +50,41 @@ class TestEpubExtraction:
 
         assert [c.title for c in chapters] == ["第二章", "第一章"]
 
+    def test_inline_markup_does_not_inject_spaces_into_words(self, tmp_path):
+        """Regression: get_text(separator=" ") put a space between every pair
+        of adjacent text nodes, so per-character markup (ruby, font spans --
+        routine in Chinese EPUBs) turned 你好吗 into 你 好 吗. Those spaces
+        reach cards, pinyin and TTS, and break the `word in sentence` checks
+        that highlighting and cloze deletion depend on."""
+        ch = epub.EpubHtml(title="第一章", file_name="ch1.xhtml", lang="zh")
+        ch.content = (
+            "<html><body><h1>第一章</h1>"
+            "<p>他<b>说</b>了一<span>句</span>话。</p></body></html>"
+        )
+        path = tmp_path / "book.epub"
+        _write_epub(path, [ch], spine=[ch])
+
+        text = extract_text_from_epub(str(path))[0].text
+
+        assert "他说了一句话。" in text
+        assert "他 说" not in text
+
+    def test_block_elements_stay_separated(self, tmp_path):
+        """Removing the separator must not run neighbouring blocks together:
+        two unpunctuated paragraphs would merge into one "sentence"."""
+        ch = epub.EpubHtml(title="第一章", file_name="ch1.xhtml", lang="zh")
+        ch.content = (
+            "<html><body><h1>第一章</h1><p>第一段内容</p><p>第二段内容</p></body></html>"
+        )
+        path = tmp_path / "book.epub"
+        _write_epub(path, [ch], spine=[ch])
+
+        text = extract_text_from_epub(str(path))[0].text
+
+        assert "第一段内容" in text
+        assert "第二段内容" in text
+        assert "第一段内容第二段内容" not in text
+
     def test_navigation_document_is_not_a_chapter(self, tmp_path):
         ch1 = _make_chapter("第一章", "ch1.xhtml", "第一章的正文内容在这里。")
         path = tmp_path / "book.epub"

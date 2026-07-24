@@ -10,6 +10,7 @@ from translate.hymt_backend import HYMTTranslateBackend
 from translate.nllb_backend import NLLBTranslateBackend
 from translate.argos_backend import ArgosTranslateBackend
 from translate.cedict_backend import CEDICTBackend
+from utils.file_utils import atomic_write_text
 
 
 def _normalize_name(name: str) -> str:
@@ -161,9 +162,13 @@ class TranslationManager:
         if self._cache_path is None or not self._cache_dirty:
             return
         try:
-            self._cache_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._cache_path, "w", encoding="utf-8") as f:
-                json.dump(self._persistent, f, ensure_ascii=False, indent=1)
+            # Atomic: this file is rewritten after every batch, so a crash
+            # (or a second run writing concurrently) mid-write would otherwise
+            # cost the whole accumulated cache.
+            atomic_write_text(
+                self._cache_path,
+                json.dumps(self._persistent, ensure_ascii=False, indent=1),
+            )
             self._cache_dirty = False
         except OSError as e:
             print(f"Warning: could not write translation cache: {e}")

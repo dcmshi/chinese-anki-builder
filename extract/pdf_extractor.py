@@ -100,8 +100,13 @@ def extract_text_from_pdf(pdf_path: str) -> List[Chapter]:
     reader = PdfReader(pdf_path)
 
     all_text = []
-    for page in reader.pages:
-        text = page.extract_text()
+    for page_num, page in enumerate(reader.pages, start=1):
+        # One damaged/encrypted/oddly-encoded page must not abort the whole book.
+        try:
+            text = page.extract_text()
+        except Exception as e:
+            print(f"Warning: skipping page {page_num} of '{pdf_path}': {e}")
+            continue
         if text and text.strip():
             all_text.append(text)
 

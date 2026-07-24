@@ -191,6 +191,63 @@ class TestBatchTranslation:
         assert manager.translate_batch(["a", "b"]) == ["", ""]
 
 
+class TestPerItemBatchFailures:
+    """One bad sentence must not send the whole book to the fallback chain.
+    create_word_cards submits every example sentence as a single batch, so an
+    all-or-nothing batch meant one malformed sentence downgraded every card."""
+
+    class PickyBackend(StubBackend):
+        """Raises on one specific text, succeeds on the rest.
+
+        Uses the base class's default translate_batch (the code under test)
+        rather than StubBackend's canned override.
+        """
+
+        def translate(self, text, source_lang="zh", target_lang="en"):
+            self.calls += 1
+            if text == "bad":
+                raise RuntimeError("model echoed the source")
+            return f"ok:{text}"
+
+        def translate_batch(self, texts, source_lang="zh", target_lang="en"):
+            return TranslationBackend.translate_batch(self, texts, source_lang, target_lang)
+
+    def test_default_batch_isolates_a_failing_item(self, capsys):
+        backend = self.PickyBackend("primary", 90)
+
+        results = backend.translate_batch(["a", "bad", "b"])
+
+        assert results == ["ok:a", "", "ok:b"]
+        assert "Warning" in capsys.readouterr().out
+
+    def test_only_the_failing_item_falls_back(self):
+        primary = self.PickyBackend("primary", 90)
+        fallback = StubBackend("fallback", 40, result="fb")
+        manager = make_manager(primary, fallback)
+
+        assert manager.translate_batch(["a", "bad", "b"]) == ["ok:a", "fb", "ok:b"]
+        assert fallback.calls == 1  # not once per sentence in the book
+
+    def test_hymt_batch_inherits_the_per_item_contract(self):
+        """HY-MT overrode translate_batch with a listwise comprehension, which
+        reintroduced the all-or-nothing behaviour."""
+        from translate.hymt_backend import HYMTTranslateBackend
+
+        backend = HYMTTranslateBackend()
+        backend._initialized = True
+
+        class Echoing:
+            def create_chat_completion(self, messages, **kwargs):
+                text = messages[0]["content"].rsplit("\n\n", 1)[-1]
+                # Echo the source for "坏", translate everything else.
+                content = text if text == "坏" else f"ok:{text}"
+                return {"choices": [{"message": {"content": content}}]}
+
+        backend.llm = Echoing()
+
+        assert backend.translate_batch(["好", "坏", "行"]) == ["ok:好", "", "ok:行"]
+
+
 class TestPersistentCache:
     def test_cache_survives_across_manager_instances(self, tmp_path):
         cache_file = tmp_path / "translations.json"
@@ -230,6 +287,28 @@ class TestPersistentCache:
         manager = make_manager(primary)
         manager.translate("这是一个句子。")
         manager.cleanup()  # must not raise or write anywhere
+
+    def test_cache_is_written_atomically(self, tmp_path, monkeypatch):
+        """The cache is rewritten after every batch; a crash mid-write used to
+        cost the whole accumulated file."""
+        import os
+
+        cache_file = tmp_path / "translations.json"
+        first = StubBackend("primary", 90, result="T")
+        manager_a = TranslationManager(backends=[first], cache_path=cache_file)
+        manager_a.initialize()
+        manager_a.translate("第一句。")
+        manager_a.cleanup()
+        before = cache_file.read_text(encoding="utf-8")
+
+        monkeypatch.setattr(os, "replace", lambda *a, **kw: (_ for _ in ()).throw(OSError("boom")))
+        manager_b = TranslationManager(backends=[StubBackend("primary", 90, result="T2")],
+                                       cache_path=cache_file)
+        manager_b.initialize()
+        manager_b.translate("第二句。")
+        manager_b.save_cache()  # OSError is caught and warned about
+
+        assert cache_file.read_text(encoding="utf-8") == before
 
     def test_corrupt_cache_file_is_ignored(self, tmp_path):
         cache_file = tmp_path / "translations.json"

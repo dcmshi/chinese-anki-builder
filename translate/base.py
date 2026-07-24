@@ -16,6 +16,10 @@ class TranslationBackend(ABC):
         """
         self.config = config or {}
         self._initialized = False
+        # Remembers a failed initialize() so callers stop retrying it (a
+        # standalone backend used after a failed init would otherwise re-run
+        # the full download/model load on every single translate() call).
+        self._init_failed = False
 
     @abstractmethod
     def initialize(self) -> bool:
@@ -80,8 +84,10 @@ class TranslationBackend(ABC):
 
         Default implementation loops over translate(); backends with a
         native batch API (e.g. CTranslate2) override this for throughput.
-        Same failure contract as translate(): raise rather than echo the
-        source text, so the manager's fallback chain engages.
+        Per-item failure contract: an item whose translate() raises yields
+        "" (with a warning) instead of failing the whole batch, so the
+        manager's fallback chain engages only for that item. Single
+        translate() calls still raise on failure.
 
         Args:
             texts: Texts to translate
@@ -89,9 +95,37 @@ class TranslationBackend(ABC):
             target_lang: Target language code
 
         Returns:
-            Translations in the same order as the inputs
+            Translations in the same order as the inputs ("" on failure)
         """
-        return [self.translate(text, source_lang, target_lang) for text in texts]
+        results = []
+        for text in texts:
+            try:
+                results.append(self.translate(text, source_lang, target_lang))
+            except Exception as e:
+                print(f"Warning: {self.get_name()} failed to translate {text!r}: {e}")
+                results.append("")
+        return results
+
+    def try_initialize(self) -> bool:
+        """
+        Initialize once, remembering failure.
+
+        initialize() can be expensive (model download, multi-GB load) and is
+        reached from several places: the manager at startup, the manager's
+        lazy fallback path, and translate() on standalone use. Retrying a
+        backend that has already failed just repeats that cost per sentence.
+
+        Returns:
+            True if the backend is ready to translate
+        """
+        if self._initialized:
+            return True
+        if self._init_failed:
+            return False
+        if self.initialize():
+            return True
+        self._init_failed = True
+        return False
 
     def is_initialized(self) -> bool:
         """

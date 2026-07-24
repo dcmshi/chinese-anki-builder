@@ -70,6 +70,26 @@ class TestGenerateAudio:
 
         assert generate_audio("你好", tmp_path / "x.mp3") is False
 
+    def test_interrupted_save_leaves_no_partial_mp3(self, tmp_path, monkeypatch):
+        """Regression: a download cut off mid-save left a truncated MP3 that
+        the cache then served forever."""
+
+        class HalfWritingGTTS:
+            def __init__(self, text, lang="zh-CN"):
+                pass
+
+            def save(self, path):
+                with open(path, "wb") as f:
+                    f.write(b"half an m")
+                raise ConnectionError("connection reset")
+
+        monkeypatch.setattr(gtts_generator, "_load_gtts", lambda: HalfWritingGTTS)
+        target = tmp_path / "x.mp3"
+
+        assert generate_audio("你好", target) is False
+        assert not target.exists()
+        assert list(tmp_path.iterdir()) == []  # temp file cleaned up too
+
 
 class TestGetOrCreateAudio:
     def test_generates_then_caches(self, tmp_path, monkeypatch):

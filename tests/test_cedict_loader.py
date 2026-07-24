@@ -151,6 +151,30 @@ class TestCEDICTLoader:
         # The bad payload must not be written to the cache.
         assert not (tmp_path / "cedict.txt").exists()
 
+    def test_download_is_written_atomically(self, tmp_path, monkeypatch):
+        """Regression: a plain write_bytes() interrupted mid-write leaves a
+        truncated dictionary that parses fine and is trusted forever."""
+        import gzip
+        import os
+
+        payload = gzip.compress("你好 你好 [ni3 hao3] /hello/\n".encode("utf-8"))
+
+        class FakeResponse:
+            content = payload
+
+            def raise_for_status(self):
+                pass
+
+        monkeypatch.setattr(cedict_loader, "get_data_dir", lambda: tmp_path)
+        monkeypatch.setattr(cedict_loader.requests, "get", lambda *a, **kw: FakeResponse())
+        monkeypatch.setattr(os, "replace", lambda *a, **kw: (_ for _ in ()).throw(OSError("boom")))
+
+        with pytest.raises(OSError):
+            download_cedict(force=True)
+
+        # No partial file left where the cache check would find it.
+        assert not (tmp_path / "cedict.txt").exists()
+
     def test_dict_entry_repr(self):
         """Test DictEntry string representation."""
         entry = DictEntry(

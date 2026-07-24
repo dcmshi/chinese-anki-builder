@@ -1,7 +1,10 @@
 """File utility functions."""
 
+import contextlib
 import json
+import os
 import re
+import tempfile
 from pathlib import Path
 
 # Characters Windows forbids in filenames (plus control chars); also unsafe
@@ -48,6 +51,51 @@ def get_cache_dir() -> Path:
     return ensure_dir(cache_dir)
 
 
+@contextlib.contextmanager
+def atomic_output_path(path: str | Path):
+    """
+    Yield a temporary path to write to, then move it into place atomically.
+
+    A plain ``open(path, "w")`` truncates the target first, so an interrupted
+    write (Ctrl-C, crash, full disk) leaves a half-written file behind that
+    later runs happily treat as a valid cache -- a truncated dictionary
+    parses fine, it just silently has fewer entries, forever. Writing to a
+    sibling temp file and ``os.replace()``-ing it means readers only ever see
+    the complete old file or the complete new one, and concurrent writers
+    can't interleave.
+
+    Args:
+        path: Final destination path (parent dirs created as needed)
+
+    Yields:
+        Path to write to (same directory, so the replace stays on one volume)
+    """
+    path = Path(path)
+    ensure_dir(path.parent)
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        yield tmp_path
+        os.replace(tmp_path, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp_path.unlink()
+        raise
+
+
+def atomic_write_bytes(path: str | Path, data: bytes) -> Path:
+    """Write bytes to path atomically (see atomic_output_path)."""
+    with atomic_output_path(path) as tmp:
+        tmp.write_bytes(data)
+    return Path(path)
+
+
+def atomic_write_text(path: str | Path, text: str, encoding: str = "utf-8") -> Path:
+    """Write text to path atomically (see atomic_output_path)."""
+    return atomic_write_bytes(path, text.encode(encoding))
+
+
 def write_stats_json(path: str | Path, stats: dict) -> Path:
     """
     Write pipeline stats to a JSON file (UTF-8, human-readable).
@@ -59,8 +107,4 @@ def write_stats_json(path: str | Path, stats: dict) -> Path:
     Returns:
         Path the stats were written to
     """
-    path = Path(path)
-    ensure_dir(path.parent)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(stats, f, ensure_ascii=False, indent=2)
-    return path
+    return atomic_write_text(path, json.dumps(stats, ensure_ascii=False, indent=2))

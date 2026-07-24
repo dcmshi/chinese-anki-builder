@@ -5,6 +5,16 @@ from ebooklib import epub
 from bs4 import BeautifulSoup
 from typing import List
 
+# Tags that end a line of text. Chinese EPUBs wrap individual characters in
+# inline markup all the time (ruby, per-character font spans), so text nodes
+# must be joined with nothing at all -- but block boundaries still need a
+# separator or two paragraphs would run together into one "sentence".
+_BLOCK_TAGS = [
+    "p", "div", "br", "li", "tr", "td", "th", "blockquote", "pre",
+    "section", "article", "header", "footer", "figcaption",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+]
+
 
 class Chapter:
     """Represents a chapter with text content."""
@@ -39,6 +49,21 @@ def _document_items_in_reading_order(book) -> list:
     return [i for i in book.get_items() if i.get_type() == ebooklib.ITEM_DOCUMENT]
 
 
+def _block_text(soup) -> str:
+    """
+    Text of a parsed document, with no separator inside a block and a newline
+    between blocks.
+
+    `get_text(separator=" ")` inserts a space between *every* pair of adjacent
+    text nodes, so `<p>你<b>好</b>吗</p>` came out as `你 好 吗`: spaces inside
+    words then propagate into cards, pinyin and TTS, and break the
+    `word in sentence` checks that highlighting and cloze deletion rely on.
+    """
+    for tag in soup.find_all(_BLOCK_TAGS):
+        tag.insert_after("\n")
+    return soup.get_text(separator="", strip=False)
+
+
 def extract_text_from_epub(epub_path: str) -> List[Chapter]:
     """
     Extract text from EPUB file, organized by chapters.
@@ -56,8 +81,8 @@ def extract_text_from_epub(epub_path: str) -> List[Chapter]:
         # Parse HTML content
         soup = BeautifulSoup(item.get_content(), "html.parser")
 
-        # Extract text
-        text = soup.get_text(separator=" ", strip=True)
+        # Extract text (no separator within a block; newline between blocks)
+        text = _block_text(soup)
 
         # Skip empty chapters
         if not text.strip():

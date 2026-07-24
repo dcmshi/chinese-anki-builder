@@ -73,7 +73,7 @@ class TestSplitTextIntoChapters:
 
 
 class TestExtractTextFromPdf:
-    def test_extracts_chapters_from_pages(self, monkeypatch):
+    def test_extracts_chapters_from_pages(self, monkeypatch, tmp_path):
         class FakePage:
             def __init__(self, text):
                 self._text = text
@@ -82,14 +82,47 @@ class TestExtractTextFromPdf:
                 return self._text
 
         class FakeReader:
-            def __init__(self, path):
+            def __init__(self, stream):
                 self.pages = [
                     FakePage("第一章 起源\n第一章的正文。"),
                     FakePage("第二章 发展\n第二章的正文。"),
                 ]
 
         monkeypatch.setattr(pdf_extractor, "PdfReader", FakeReader)
+        pdf_path = tmp_path / "fake.pdf"
+        pdf_path.write_bytes(b"%PDF-fake")
 
-        chapters = extract_text_from_pdf("fake.pdf")
+        chapters = extract_text_from_pdf(str(pdf_path))
 
         assert [c.title for c in chapters] == ["第一章 起源", "第二章 发展"]
+
+    def test_bad_page_is_skipped_with_warning(self, monkeypatch, tmp_path, capsys):
+        class FakePage:
+            def __init__(self, text=None, error=None):
+                self._text = text
+                self._error = error
+
+            def extract_text(self):
+                if self._error is not None:
+                    raise self._error
+                return self._text
+
+        class FakeReader:
+            def __init__(self, stream):
+                self.pages = [
+                    FakePage("第一章 起源\n第一章的正文。"),
+                    FakePage(error=ValueError("damaged page")),
+                    FakePage("第二章 发展\n第二章的正文。"),
+                ]
+
+        monkeypatch.setattr(pdf_extractor, "PdfReader", FakeReader)
+        pdf_path = tmp_path / "fake.pdf"
+        pdf_path.write_bytes(b"%PDF-fake")
+
+        chapters = extract_text_from_pdf(str(pdf_path))
+
+        assert [c.title for c in chapters] == ["第一章 起源", "第二章 发展"]
+        warning = capsys.readouterr().out
+        assert "Warning" in warning
+        assert "page 2" in warning
+
