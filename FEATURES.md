@@ -73,8 +73,8 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 - Automatic output directory creation
 
 **Quality & Testing**:
-- 223 unit tests covering all modules
-- Test coverage: 85% overall
+- 454 unit tests covering all modules
+- Test coverage: 90% overall (source)
 - Definition validation
 - Windows UTF-8 console encoding
 - Offline operation after initial CEDICT download (cached models skip the
@@ -282,7 +282,7 @@ uv run python main.py \
 
 ### Unit Tests
 
-**Coverage**: 223 tests, 85% overall coverage
+**Coverage**: 454 tests, 90% overall coverage (source modules)
 
 **Test Modules**: word selection, CEDICT loading/parsing, deck building,
 text cleaning/sentence splitting, tokenization, pinyin conversion, EPUB/PDF
@@ -414,7 +414,7 @@ ruff >= 0.1.0                # Linting
 **Performance & Quality**
 - ✅ Character-bigram sentence index (~10x faster example lookup)
 - ✅ Argos skips the network entirely when its model is cached
-- ✅ 223 tests, 85% coverage
+- ✅ 454 tests, 90% coverage
 
 ### 2026-02-09: Translation & Quality Improvements
 

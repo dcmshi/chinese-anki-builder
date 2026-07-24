@@ -70,7 +70,7 @@ anki-chinese-deck/
 │   ├── file_utils.py
 │   └── chinese_utils.py
 │
-└── tests/                       # Unit tests (334 tests)
+└── tests/                       # Unit tests (454 tests)
 ```
 
 ## Design Principles
@@ -129,9 +129,9 @@ uv run python main.py --input book.epub --deck "Beginner" --top-words 300 --min-
 --config <file>         # Custom YAML config (errors if the path doesn't exist)
 --hsk <spec>            # HSK filtering: "3" (up to 3), "2-4", "1,3,5" (7 = 7-9 band)
 --stats <file>          # Export pipeline stats to JSON
---cloze                 # Cloze-deletion cards instead of word-in-sentence
---tts                   # gTTS word audio (requires internet + `uv sync --extra tts`)
---tts-sentences         # Also generate example-sentence audio
+--cloze / --no-cloze    # Cloze-deletion cards instead of word-in-sentence
+--tts / --no-tts        # gTTS word audio (requires internet + `uv sync --extra tts`)
+--tts-sentences / --no-tts-sentences   # Also generate example-sentence audio
 --known-words <file>    # Exclude already-known words (one per line)
 --preview <html>        # Static HTML preview of the cards (works with --review)
 --review <csv>          # Write cards to a CSV for QC and stop (no deck built)
@@ -148,7 +148,15 @@ Settings read from `config.yaml` (CLI flags override these): `top_words`,
 `min_frequency`, `output_dir`, `enable_tts`, `enable_sentence_tts`,
 `known_words_file`, `cloze`, `hsk_levels`, `stats_file`,
 `min_sentence_length`, `max_sentence_length`.
-CLI > config.yaml > built-in default.
+CLI > config.yaml > built-in default. The boolean flags are
+`BooleanOptionalAction`, so `--no-cloze` / `--no-tts` / `--no-tts-sentences`
+turn a config `true` off for one run. `hsk_levels` accepts a list
+(`[1, 3]` = exactly those levels), a scalar (`3` = up to level 3, like
+`--hsk 3`), or a spec string (`"2-4"`).
+
+**Cache location**: `get_data_dir()` resolves `ANKI_CHINESE_DATA_DIR` first,
+then `<repo>/data` for a source checkout, then a per-user data directory
+(installed copies must not write into `site-packages`).
 
 ## Key Implementation Notes
 

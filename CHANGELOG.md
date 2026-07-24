@@ -4,6 +4,112 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.7.0] - 2026-07-24
+
+Repo-wide bug-fix release: the 2026-07-24 audit (see TODO.md) closed out,
+36 of 38 findings actioned and 2 rejected with reasons. Suite 334 → 454
+tests, ruff-clean.
+
+### Fixed
+
+- **EPUB extraction injected spaces mid-word**: text nodes were joined with
+  a space, so per-character inline markup (ruby, font spans — routine in
+  Chinese EPUBs) turned `你好吗` into `你 好 吗`. Those spaces polluted
+  cards, pinyin and TTS text, and silently broke the `word in sentence`
+  checks behind highlighting and cloze deletion. Blocks are now separated
+  by newlines and text within a block is joined with nothing
+- **One bad sentence downgraded a whole book's translations**:
+  `translate_batch` was all-or-nothing, and the pipeline submits every
+  example sentence as one batch, so a single echoed/malformed sentence sent
+  the entire book to the lower-quality fallback chain. Failures are now
+  isolated per item (HY-MT's override included)
+- **Caches are written atomically** (`os.replace` via a sibling temp file):
+  CC-CEDICT, HSK word lists, TTS MP3s, the persistent translation cache and
+  stats JSON. An interrupted write used to leave a truncated file that
+  parses fine and is then trusted forever
+- **One malformed PDF page no longer aborts the book**: per-page
+  `extract_text()` failures are logged with the page number and skipped
+- **Interrupted NLLB download no longer bricks the backend**: an unloadable
+  cached model is discarded and re-fetched once instead of raising on every
+  future run
+- **Fallback translations consult the persistent cache**: fallback results
+  were written to it but never read back, so re-runs repeated full model
+  inference
+- **`--from-review` frequencies survive spreadsheets**: Excel rewrites an
+  integer column as `5.0`, which `int()` rejected — the card came back with
+  `frequency=0`
+- **`……` ends a sentence**: fiction-standard ellipsis runs were not
+  terminators, merging passages into mega-sentences that then exceeded
+  `max_sentence_length` and got skipped. A lone `…` still stays
+  mid-sentence, and a leading `……`/`——` is kept as a dialogue opener
+- **Unusable example sentences are rejected**: with no in-range match, the
+  shortest match of *any* length was used, so a multi-thousand-character
+  blob could land on a card and in gTTS
+- **Invalid cloze notes are skipped** (with a count) instead of shipping
+  notes Anki rejects for having no deletion
+- **CC-CEDICT backend reports its real state**: `initialize()` returned True
+  even with no dictionary set, so it could be announced as ready, selected
+  as active, and return "" for everything
+- **Extractors fail with the file path** instead of a raw library
+  traceback; the PDF is read into memory so its handle isn't held open
+  (which locks the file on Windows)
+- **HTML escaping is consistent**: `Word`, `Chapter`, `Definition` and
+  translations are escaped like `Sentence` already was — chapter titles come
+  from raw EPUB headings, and the HTML preview escaped them while the deck
+  didn't
+- **Unknown NLLB language codes raise** instead of silently translating
+  zh→en (a typo produced plausible-looking output for the wrong pair)
+- **CJK Extension A and compatibility ideographs count as Chinese**
+  (U+3400–U+4DBF, U+F900–U+FAFF); older/classical text and names were
+  treated as punctuation
+- **Windows reserved filenames** (`CON`, `NUL`, `COM1`, …) are suffixed, so
+  a deck named after one can be written at all
+- **`hsk_levels` from config is validated**: a scalar used to raise a raw
+  `TypeError` deep in the pipeline
+- **`--stats` works in `--review` mode** (the early return skipped it
+  silently), and `--tts` now says it is ignored there
+- **`multi_char_words` stat means what it says**: it reported the post-HSK
+  count; the HSK-filtered pool is exported separately as
+  `words_within_hsk_levels`
+- **BOM tolerance**: `config.yaml` and hand-placed HSK lists are read as
+  `utf-8-sig` like the rest of the project
+- **TTS cache key includes the voice**, so changing `lang` can't serve the
+  other voice's audio (default `zh-CN` keys are unchanged, existing caches
+  stay valid)
+- **Batch/length mismatch is reported** rather than `zip()`-truncated,
+  which left tail sentences untranslated with no clue why
+- Missing-definition warnings are summarized once instead of one `print`
+  per card garbling the progress bar
+- Mixed-script tokens (`iPhone手机`, `QQ群`) no longer consume top-N slots
+  only to be dropped later as undefined
+- Non-linear EPUB spine items (`linear="no"` auxiliary content) are no
+  longer extracted as chapters
+- A backend that fails to initialize is not retried per sentence
+- `parse_hsk_levels` tolerates a trailing comma and reports non-numeric
+  fields with its friendly message
+
+### Added
+
+- `--no-cloze` / `--no-tts` / `--no-tts-sentences`: the boolean flags use
+  `argparse.BooleanOptionalAction`, so a `true` in `config.yaml` can be
+  turned off for a single run
+- `ANKI_CHINESE_DATA_DIR` to relocate the data/cache directory. An
+  installed (non-source) copy now caches under a per-user data directory
+  instead of writing ~1GB of models into `site-packages`
+- Only the active translation backend is loaded at startup; fallbacks
+  initialize on first use, so installing all extras no longer holds HY-MT,
+  NLLB and Argos in RAM simultaneously
+- `utils.file_utils`: `atomic_output_path` / `atomic_write_bytes` /
+  `atomic_write_text`; `utils.chinese_utils.is_han_only`;
+  `process.hsk_filter.validate_hsk_levels`;
+  `translate.base.TranslationBackend.try_initialize`
+
+### Changed
+
+- Chapter text from EPUBs now contains newlines between blocks (they are
+  collapsed by `clean_text`, which also means EPUB page-number artifacts get
+  the same line-based filtering PDFs already had)
+
 ## [0.6.0] - 2026-07-15
 
 ### Added

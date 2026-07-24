@@ -69,7 +69,7 @@ uv run pytest tests/ --cov=process --cov=anki --cov-report=term-missing
 
 ### Coverage Status
 
-**Total:** 223 tests, 85% overall coverage (run the coverage command above
+**Total:** 454 tests, 90% overall coverage (run the coverage command above
 for the current per-module breakdown). Every module has direct tests: word
 selection, CEDICT loading, deck building (regular + cloze), text cleaning,
 tokenization, pinyin conversion, EPUB/PDF extraction, HSK filtering, TTS,
@@ -313,6 +313,6 @@ def test_memory_usage():
 ---
 
 **Last Updated:** 2026-07-09
-**Current Test Count:** 223 tests
-**Current Coverage:** 85% overall
+**Current Test Count:** 454 tests
+**Current Coverage:** 90% overall
 **Target Coverage:** 75%+ (met)

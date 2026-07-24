@@ -75,13 +75,21 @@ uv run python main.py --input <file> [options]
 - `--config, -c` - Config file (default: config.yaml)
 - `--hsk` - Only include HSK words: `3` (up to level 3), `2-4`, or `1,3,5` (7 = 7-9 band)
 - `--stats` - Export pipeline stats to a JSON file
-- `--cloze` - Build cloze-deletion cards (word blanked out of the sentence)
-- `--tts` - Generate word audio with gTTS (requires internet and `uv sync --extra tts`)
-- `--tts-sentences` - Also generate example-sentence audio
+- `--cloze` / `--no-cloze` - Build cloze-deletion cards (word blanked out of the sentence)
+- `--tts` / `--no-tts` - Generate word audio with gTTS (requires internet and `uv sync --extra tts`)
+- `--tts-sentences` / `--no-tts-sentences` - Also generate example-sentence audio
 - `--known-words` - Text file of already-known words to exclude (one per line)
 - `--preview` - Write a static HTML preview of the cards (combines with `--review`)
 - `--review` - Write cards to a CSV for QC and stop before deck build
 - `--from-review` - Build the deck from a reviewed CSV (replaces `--input`)
+
+The three boolean flags have `--no-` forms so a `true` in `config.yaml` can be
+switched off for a single run.
+
+**Cache location**: downloaded dictionaries, HSK lists, models and TTS audio
+go to `data/` in the checkout. Set `ANKI_CHINESE_DATA_DIR` to put them
+elsewhere (an installed copy defaults to a per-user data directory instead of
+the package location).
 
 **Quality-control workflow**: export the cards for review, fix or delete
 rows in any spreadsheet, then build:

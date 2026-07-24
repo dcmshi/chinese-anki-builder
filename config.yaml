@@ -7,6 +7,8 @@ min_frequency: 2
 # HSK filtering (optional)
 # Uncomment to only include words from these HSK 3.0 levels (7 = 7-9 band).
 # Word lists download on first use and are cached under data/hsk/.
+# A list means exactly those levels; a scalar reads like --hsk (3 = up to
+# level 3), and a string spec ("2-4") works too.
 # hsk_levels: [1, 2, 3, 4, 5]
 
 # TTS audio generation
@@ -19,6 +21,7 @@ enable_sentence_tts: false
 # known_words_file: known_words.txt
 
 # Card style: false = word-in-sentence cards, true = cloze-deletion cards
+# (override per run with --cloze / --no-cloze; same for --tts / --no-tts)
 cloze: false
 
 # Output

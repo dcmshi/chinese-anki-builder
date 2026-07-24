@@ -1,5 +1,248 @@
 # TODO — Repo Audit Action Items
 
+## Audit 2026-07-24 — Full-repo bug & improvement scan
+
+Four-parallel-reviewer sweep of every module (process/, translate/, tts/,
+anki/, extract/, utils/, main.py wiring). Baseline at scan time: **334/334
+tests passing, ruff clean**. No test-suite failures — all findings below are
+latent bugs or improvements not covered by the current tests.
+
+> **Status: closed out 2026-07-24.** 36 of 38 findings actioned, 2 rejected
+> after verification against the code/data (both marked *[rejected]* below,
+> with the check that disproved them). Every fix carries a regression test:
+> suite **334 → 454 tests**, 90% source coverage, ruff-clean. Shipped as
+> 0.7.0. Two findings were narrowed rather than implemented as written —
+> the over-long-sentence fix caps at selection instead of dropping splitter
+> tails, and the mixed-token filter sits in the candidate filter instead of
+> the tokenizer — reasons inline.
+
+### P0 — High severity (real bugs)
+
+- [x] **One bad sentence silently downgrades the whole book's translations**
+  (`translate/manager.py:297-323`, `translate/base.py:94`,
+  `translate/hymt_backend.py:167`). `translate_batch` is all-or-nothing: one
+  exception in any item sends the *entire* book to the fallback chain, which
+  skips the active backend (`manager.py:184`). `create_word_cards` submits
+  the whole book as a single batch (`process/word_selector.py:210`), so one
+  HY-MT echo / malformed sentence means every card gets lower-quality
+  translations with only one log line as evidence. Fix: catch per-item
+  exceptions in `base.py`'s default `translate_batch` (and HY-MT's
+  override), return `""` for failures — the manager already routes empties
+  through per-item fallback.
+- [x] **EPUB extraction injects spaces mid-word**
+  (`extract/epub_extractor.py:60`). `get_text(separator=" ", strip=True)`
+  puts a space between *every* adjacent text node, so
+  `<p>你<b>好</b>吗</p>` → `你 好 吗`. Chinese EPUBs routinely wrap
+  characters in spans (ruby, fonts), so this is realistic; spaces pollute
+  cards, pinyin, TTS text, and can break `word in sentence` checks
+  downstream (highlight/cloze silently no-op). Fix: `separator=""` and join
+  per-block elements with `"\n"`/space instead.
+- [x] **Non-atomic cache writes leave permanently-trusted corrupt files** —
+  same bug in four places: `process/cedict_loader.py:71` and
+  `process/hsk_filter.py:96` (truncated dictionary/HSK list parses fine,
+  just silently has fewer entries — forever), `tts/gtts_generator.py:85`
+  (truncated MP3 served from cache), `translate/manager.py:165` (whole
+  translation cache lost on crash mid-write; concurrent runs clobber each
+  other). Fix everywhere: write to a sibling temp file + `os.replace()`.
+- [x] **One malformed PDF page aborts the whole book**
+  (`extract/pdf_extractor.py:103-106`). `page.extract_text()` raises on
+  damaged/encrypted/oddly-encoded pages; no per-page try/except, so one bad
+  page in a 500-page book kills the run with no partial output. Fix: catch,
+  log page number, continue.
+
+### P1 — Medium severity
+
+- [x] **Interrupted NLLB download bricks the backend**
+  (`translate/nllb_backend.py:93-103`). Cache check is just
+  `model.bin` exists; a partial download makes `ctranslate2.Translator`
+  raise on every subsequent run — the backend never self-heals. Fix: on load
+  failure, delete the dir and retry the download once.
+- [x] **All available backends' models load at startup, not just the active
+  one** (`translate/manager.py:111-137`). With extras installed, HY-MT's
+  GGUF LLM + NLLB-600M + Argos can all sit in RAM simultaneously (multiple
+  GB) though only one is active. Fix: initialize fallbacks lazily on first
+  use inside `_fallback_translate()`.
+- [x] **Fallback translations never consult the persistent cache**
+  (`translate/manager.py:178-200`). Fallback results *are* persisted but the
+  cache is never *read* on the fallback path, so re-runs redo full model
+  inference for sentences a fallback already translated. Fix: check
+  `_persistent_get` per candidate backend in the `_fallback_translate` loop.
+- [x] **`"5.0"`-style frequencies silently zeroed on review re-import**
+  (`process/review.py:113`). Excel/LibreOffice reformat integer columns as
+  floats; `int("5.0")` raises, the `except ValueError` swallows it, and the
+  card comes back with `frequency=0` — silent data loss in the documented
+  `--from-review` workflow. Fix: parse via `int(float(value))`.
+- [x] **`……` not treated as a sentence ender**
+  (`process/text_cleaner.py:10`). Very common in fiction; merged
+  mega-sentences then exceed `max_sentence_length` and get skipped or land
+  on cards over-length. Fix: treat a *run* of `…` (optionally followed by
+  closers) as a soft ender — don't add single `…` to `_SENT_ENDERS`
+  outright (it also appears mid-sentence).
+- [x] **Over-long fallback sentences reach cards**
+  (`process/word_selector.py:129-132` + `process/text_cleaner.py:95-98`).
+  When no in-range sentence exists, `min(..., key=len)` picks the shortest
+  match of *any* length; combined with unpunctuated trailing fragments kept
+  by `split_sentences`, a multi-thousand-character blob can land on a card
+  and in gTTS. Fix: cap or skip in the fallback; drop over-long tails in
+  `split_sentences`.
+  *Narrowed*: capped in the fallback only (accepts up to 3x
+  `max_sentence_length`, else reports no sentence and the word counts as
+  `skipped_no_sentence`). The splitter keeps its over-long tails on purpose —
+  dropping content there would silently discard text that unusual punctuation
+  made one long fragment, and the cap at selection already keeps blobs off
+  cards and out of gTTS, which is the actual harm.
+- [x] **Invalid cloze notes shipped when the word isn't in the sentence**
+  (`anki/deck_builder.py:198-241`). Nothing enforces the
+  callers-only-pass-containing-sentences assumption (and the EPUB-space bug
+  above can cause exactly this); Anki flags "no cloze deletions" on import.
+  Fix: skip (and count) notes whose cloze text lacks `{{c1::`.
+- [x] **CEDICT backend reports initialized with no dictionary loaded**
+  (`translate/cedict_backend.py:20-29`). `initialize()` sets
+  `_initialized = True` unconditionally; a manager used without
+  `set_cedict()` reports "✓ Initialized: CC-CEDICT", may select it as
+  active, and produces empty translations for everything. Fix: return
+  `self.cedict is not None` from `initialize()`.
+- [x] **No error handling or cleanup around extractor file opening**
+  (`extract/pdf_extractor.py:100`, `extract/epub_extractor.py:52`).
+  `PdfReader` keeps the file handle open for its lifetime (locks the file on
+  Windows); neither library's failures get a useful message. Fix: catch
+  `OSError`/library exceptions and re-raise with the path; for pypdf, read
+  bytes first (`PdfReader(io.BytesIO(...))`) or `reader.close()` in
+  `finally`.
+
+### P2 — Low severity
+
+- [x] **`is_chinese_char` misses CJK Extension A** (`utils/chinese_utils.py:8`)
+  — only U+4E00–U+9FFF covered, so `contains_chinese` /
+  `is_multi_char_word` / `_chinese_char_count` undercount rare-but-real
+  characters (older/classical texts). Extend to `\u3400-\u4dbf` (and
+  possibly compatibility ideographs `\uf900-\ufaff`).
+- [x] **Mixed tokens waste top-N slots** (`process/tokenizer.py:52`) —
+  `contains_chinese` keeps tokens with ≥1 Han char ("QQ群", "A股"), which
+  get selected then skipped as "no definition", shrinking the deck below
+  `top_words`. Require purely-Han tokens in the filter.
+  *Narrowed*: enforced in `filter_multi_char_words` (the card-candidate
+  filter) rather than `tokenize_text`. Filtering at tokenization would also
+  drop those tokens from the frequency/coverage statistics and from CC-CEDICT
+  word-by-word translation, where a mixed token still carries meaning.
+- [x] **`sanitize_filename` misses Windows reserved names**
+  (`utils/file_utils.py:12`) — `CON`, `PRN`, `NUL`, `AUX`, `COM1-9`,
+  `LPT1-9` pass through; the project targets Windows. Append `_` when the
+  sanitized stem matches the reserved set.
+- [x] **`get_data_dir()` anchored to the package source tree**
+  (`utils/file_utils.py:39`) — caches (CC-CEDICT, HSK, translations, TTS)
+  land in `site-packages` (potentially read-only) when installed from the
+  wheel. Resolve via cwd/platformdirs when installed, or fall back
+  gracefully when unwritable.
+- [x] **Boolean config flags can't be overridden from the CLI**
+  (`main.py:509-527`) — `--cloze`/`--tts`/`--tts-sentences` are
+  `store_true` with `default=None`, so `cloze: true` in config.yaml can't be
+  turned off per-run. Use `argparse.BooleanOptionalAction`.
+- [x] **`--stats` and `--tts` silently ignored in `--review` mode**
+  (`main.py:355-381`) — the early return after writing the review CSV
+  produces no stats and no warning. Export stats before the return, or warn.
+- [x] **`multi_char_words` stat mislabeled when HSK filtering is active**
+  (`main.py:365`) — reports the post-filter count. Capture the pre-filter
+  count and export both.
+- [x] **`hsk_levels` from config used unvalidated** (`main.py:602-604`) — a
+  scalar `hsk_levels: 3` in config.yaml raises a raw `TypeError`. Normalize
+  scalar → list / spec-string → `parse_hsk_levels` in the resolve step.
+- [x] **Dead regex in `improve_translation`**
+  (`process/sentence_translator.py:110`) — `re.sub(r'\b[的了着过]\b', '', result)`
+  operates on an English string where those particles were already stripped;
+  at best it can delete characters from an untranslated name. Remove it (and
+  move the function-local `import re` to module top).
+- [x] **NLLB silently maps unknown language codes to zh→en**
+  (`translate/nllb_backend.py:166`) — a typo'd code yields a
+  plausible-looking translation instead of an error (Argos raises
+  `ValueError` in the same situation). Raise or at least warn.
+- [x] **HSK spec with trailing comma gives a raw `int('')` error**
+  (`process/hsk_filter.py:45`) — filter empties before `int()` for the
+  friendly `ValueError`.
+- [x] **HSK list file read without BOM tolerance**
+  (`process/hsk_filter.py:126`) — `utf-8` leaves `\ufeff` glued to the first
+  word of a manually-placed file; `known_words.py` already uses `utf-8-sig`.
+- [x] **TTS cache key ignores `lang`** (`tts/gtts_generator.py:30-41`) —
+  changing voice (zh-CN → zh-TW) would serve stale audio. Include `lang` in
+  the hash.
+- [ ] **CEDICT `line.split("/")` mangles definitions with embedded slashes**
+  *[rejected]* (`process/cedict_loader.py:97`) — senses like `24/7` split
+  into bogus fragments. Partition the trailing `/` first (`rsplit("/", 1)`),
+  then split senses.
+  **Verified false against the data**: `/` is CC-CEDICT's reserved sense
+  separator, so no sense contains one. Scanned all 124,782 lines of the
+  cached dictionary: zero lines lack the trailing `/`, and every
+  digit-only sense (`/seven/7/`, `/three-dimensional/3D/`) is a genuine
+  separate sense, not a split `24/7`. The proposed `rsplit` wouldn't change
+  the outcome for an embedded slash anyway — the format is ambiguous there
+  by construction. *Actioned the adjacent real weakness instead*: only the
+  final empty field is dropped now, so a hand-placed file without the
+  trailing `/` keeps its last sense (was silently discarded).
+- [x] **`zip(unique_sentences, translated)` silently truncates on backend
+  length mismatch** (`process/word_selector.py:216`) — tail sentences get
+  empty translations with no warning. Check lengths and log/fall back.
+- [x] **`_tidy_sentence` strips legitimate leading ellipsis/dashes**
+  (`process/text_cleaner.py:16,37`) — `_LEADING_JUNK` includes `…—–-`;
+  dialogue like `……我不知道。` loses its opener.
+- [ ] **Highlighting hits substrings inside other words** *[rejected]*
+  (`anki/deck_builder.py:37-60`) — word `人` highlights inside `人们`.
+  Consider highlighting only the jieba-selected occurrence.
+  **Premise doesn't hold for this pipeline**: card words always carry 2+ Han
+  characters (`filter_multi_char_words`), so the single-character example
+  can't occur. For the 2-char cases that can (`学习` inside `学习者`) the
+  nested match is the same morpheme, and highlighting it is defensible
+  pedagogy rather than a defect. Selecting one occurrence would mean
+  re-tokenizing the sentence in the deck builder and agreeing with jieba's
+  segmentation of hand-edited `--from-review` rows — real complexity and a
+  determinism risk for no clear gain. Behaviour documented as intentional in
+  `highlight_word_in_sentence`.
+- [x] **`media_files: List[str] = None` wrong annotation**
+  (`anki/deck_builder.py:250`) — should be `Optional[List[str]]`.
+- [x] **Per-card `print` warnings spam on large decks**
+  (`anki/deck_builder.py:133,157`) — one line per missing definition floods
+  output and garbles the tqdm bar. Collect and print a single summary.
+- [x] **`Word`/`Chapter` fields not HTML-escaped** (`anki/deck_builder.py:181-189,226-239`)
+  — `Sentence` is escaped but chapter titles from EPUB headings aren't;
+  `preview.py` already escapes chapter, so preview and deck disagree.
+- [x] **Non-linear EPUB spine items extracted as chapters**
+  (`extract/epub_extractor.py:31`) — `linear="no"` aux content is included
+  in reading order.
+- [x] **Argos/NLLB/HY-MT re-run full `initialize()` on every `translate()`
+  call when uninitialized** (`translate/argos_backend.py:117-119`) —
+  standalone use after a failed init hammers the network per sentence.
+  Cache the init failure and raise immediately.
+- [x] **`config.yaml` read as plain `utf-8`** (`main.py:49,53`) — a BOM
+  (Windows Notepad) breaks `yaml.safe_load` with a cryptic error; the rest
+  of the project tolerates BOMs. Use `utf-8-sig`.
+- [x] **Dead `isspace()` check** (`process/tokenizer.py:48-49`) —
+  unreachable after `token.strip()` + empty check. Remove.
+- [x] **PDF chapter headings split across page boundaries are missed**
+  (`extract/pdf_extractor.py:108`) — inherent to the heuristic; document the
+  limitation in the docstring.
+
+### Found while closing this audit (not in the original scan, not fixed)
+
+- [ ] **Chapter headings bleed into the first example sentence.** A heading
+  carries no sentence-ending punctuation, and `clean_text` joins all lines
+  with a space (correctly, so hard-wrapped PDF lines don't break
+  mid-sentence), so the first sentence of every chapter becomes
+  `第二章 研究 科学家们正在努力研究宇宙深处的秘密。`. Verified identical
+  before and after this pass's extraction change, i.e. long-standing, not a
+  regression. In an 11-card smoke deck, 5 cards carried heading text and one
+  translation degraded to "The second chapter of the study is that
+  scientists...". Fix needs a way to keep EPUB block boundaries as sentence
+  boundaries while still joining PDF's hard-wrapped lines — extraction now
+  emits `\n` only at semantic block boundaries, so the information is
+  available; `clean_text`/`split_sentences` would need to distinguish the two
+  sources (e.g. an explicit `join_lines` flag set per extractor).
+- [ ] **`requires-python = ">=3.9"` is not achievable.** `utils/file_utils.py`
+  annotates `str | Path` (PEP 604), which is evaluated at def time and raises
+  `TypeError` on 3.9. The real floor is 3.10. Either drop the annotations to
+  `Union[...]`/add `from __future__ import annotations`, or raise the pin —
+  a release decision, so left alone here.
+
+---
+
 ## Audit 2026-07-15 — Translation state-of-the-art review
 
 Deep audit of the translation stack against the mid-2026 open-model landscape,
