@@ -3,7 +3,7 @@
 import genanki
 import html
 import re
-from typing import List, Dict
+from typing import List, Dict, Optional
 from pathlib import Path
 import hashlib
 from tqdm import tqdm
@@ -122,15 +122,28 @@ def resolve_word_pinyin(card: WordCard, cedict: Dict[str, DictEntry]) -> str:
     return card.word_pinyin or word_to_pinyin(card.word, cedict)
 
 
-def resolve_definition(card: WordCard, cedict: Dict[str, DictEntry], warn: bool = False) -> str:
-    """Reviewer override wins, otherwise the preferred CEDICT sense."""
+def resolve_definition(
+    card: WordCard,
+    cedict: Dict[str, DictEntry],
+    missing_out: Optional[List[str]] = None,
+) -> str:
+    """
+    Reviewer override wins, otherwise the preferred CEDICT sense.
+
+    Args:
+        card: The card being rendered
+        cedict: CC-CEDICT dictionary
+        missing_out: Optional list that collects words with no definition, so
+            build_deck can print one summary instead of a line per card
+            (which flooded output and garbled the progress bar)
+    """
     if card.definition:
         return card.definition
     if cedict and card.word in cedict:
         return cedict[card.word].get_first_definition()
     # Fallback for words not in dictionary (shouldn't happen after filtering)
-    if warn:
-        print(f"Warning: No definition found for '{card.word}'")
+    if missing_out is not None:
+        missing_out.append(card.word)
     return "[Definition not found in CC-CEDICT]"
 
 
@@ -138,6 +151,7 @@ def create_anki_note(
     card: WordCard,
     cedict: Dict[str, DictEntry],
     model: genanki.Model,
+    missing_out: Optional[List[str]] = None,
 ) -> genanki.Note:
     """
     Create an Anki note from a word card.
@@ -149,12 +163,13 @@ def create_anki_note(
         card: WordCard object
         cedict: CC-CEDICT dictionary
         model: Anki model
+        missing_out: Optional list collecting words with no definition
 
     Returns:
         genanki.Note object
     """
     pinyin = resolve_word_pinyin(card, cedict)
-    definition = resolve_definition(card, cedict, warn=True)
+    definition = resolve_definition(card, cedict, missing_out=missing_out)
 
     # Get sentence pinyin
     sentence_pinyin = card.sentence_pinyin or ""
@@ -199,6 +214,7 @@ def create_cloze_note(
     card: WordCard,
     cedict: Dict[str, DictEntry],
     model: genanki.Model,
+    missing_out: Optional[List[str]] = None,
 ) -> genanki.Note:
     """
     Create a cloze note (sentence with the target word blanked) from a card.
@@ -207,12 +223,13 @@ def create_cloze_note(
         card: WordCard object
         cedict: CC-CEDICT dictionary
         model: Anki cloze model
+        missing_out: Optional list collecting words with no definition
 
     Returns:
         genanki.Note object
     """
     pinyin = resolve_word_pinyin(card, cedict)
-    definition = resolve_definition(card, cedict)
+    definition = resolve_definition(card, cedict, missing_out=missing_out)
 
     tag = chapter_to_tag(card.chapter)
 
@@ -252,6 +269,10 @@ def build_deck(
     """
     Build and save an Anki deck.
 
+    Cloze notes whose text carries no deletion are dropped: Anki rejects them
+    on import with "no cloze deletions found", and the condition is reachable
+    whenever a card's word isn't a literal substring of its sentence.
+
     Args:
         deck_name: Name of the deck
         cards: List of WordCard objects
@@ -269,13 +290,31 @@ def build_deck(
     # Get model
     model = get_chinese_cloze_model() if cloze else get_chinese_model()
 
-    # Create and add notes with progress bar
+    # Create and add notes with progress bar. Warnings are collected rather
+    # than printed per card (one line per card garbles the progress bar).
+    missing_definitions: List[str] = []
+    invalid_cloze: List[str] = []
     for card in tqdm(cards, desc="Building deck", unit="card"):
         if cloze:
-            note = create_cloze_note(card, cedict, model)
+            note = create_cloze_note(card, cedict, model, missing_out=missing_definitions)
+            if "{{c1::" not in note.fields[0]:
+                invalid_cloze.append(card.word)
+                continue
         else:
-            note = create_anki_note(card, cedict, model)
+            note = create_anki_note(card, cedict, model, missing_out=missing_definitions)
         deck.add_note(note)
+
+    if missing_definitions:
+        sample = ", ".join(missing_definitions[:5])
+        more = f" (+{len(missing_definitions) - 5} more)" if len(missing_definitions) > 5 else ""
+        print(f"Warning: no definition found for {len(missing_definitions)} word(s): {sample}{more}")
+    if invalid_cloze:
+        sample = ", ".join(invalid_cloze[:5])
+        more = f" (+{len(invalid_cloze) - 5} more)" if len(invalid_cloze) > 5 else ""
+        print(
+            f"Warning: skipped {len(invalid_cloze)} card(s) whose word is absent from "
+            f"the sentence, so no cloze deletion could be made: {sample}{more}"
+        )
 
     # Save deck
     output_path = Path(output_path)

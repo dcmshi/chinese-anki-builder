@@ -127,6 +127,16 @@ class TestLoadValidation:
         rewrite_rows(path, lambda rows: [dict(rows[0], frequency="often")] + rows[1:])
         assert load_cards_from_csv(path)[0].frequency == 0
 
+    @pytest.mark.parametrize("value,expected", [("5.0", 5), ("5", 5), (" 7.9 ", 7), ("", 0)])
+    def test_spreadsheet_reformatted_frequency_survives(self, tmp_path, value, expected):
+        """Regression: Excel/LibreOffice rewrite an integer column as "5.0",
+        which int() rejects -- the card came back with frequency=0, silent
+        data loss in the documented --from-review workflow."""
+        path = export_cards_to_csv(make_cards(), tmp_path / "cards.csv", cedict=FAKE_CEDICT)
+        rewrite_rows(path, lambda rows: [dict(rows[0], frequency=value)] + rows[1:])
+
+        assert load_cards_from_csv(path)[0].frequency == expected
+
 
 class TestOverridesReachNotes:
     def test_regular_note_uses_overrides(self):

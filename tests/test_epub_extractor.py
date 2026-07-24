@@ -1,5 +1,6 @@
 """Tests for EPUB extraction, built on real EPUB files written to disk."""
 
+import pytest
 from ebooklib import epub
 
 from extract.epub_extractor import extract_text_from_epub
@@ -84,6 +85,17 @@ class TestEpubExtraction:
         assert "第一段内容" in text
         assert "第二段内容" in text
         assert "第一段内容第二段内容" not in text
+
+    def test_unreadable_file_raises_error_naming_path(self, tmp_path):
+        not_an_epub = tmp_path / "broken.epub"
+        not_an_epub.write_bytes(b"this is not a zip archive")
+
+        with pytest.raises(ValueError, match="broken.epub"):
+            extract_text_from_epub(str(not_an_epub))
+
+    def test_missing_file_raises_error_naming_path(self, tmp_path):
+        with pytest.raises(ValueError, match="missing.epub"):
+            extract_text_from_epub(str(tmp_path / "missing.epub"))
 
     def test_navigation_document_is_not_a_chapter(self, tmp_path):
         ch1 = _make_chapter("第一章", "ch1.xhtml", "第一章的正文内容在这里。")

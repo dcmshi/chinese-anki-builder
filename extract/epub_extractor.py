@@ -1,5 +1,7 @@
 """Extract text from EPUB files."""
 
+import zipfile
+
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
@@ -73,8 +75,15 @@ def extract_text_from_epub(epub_path: str) -> List[Chapter]:
 
     Returns:
         List of Chapter objects containing title and text, in reading order
+
+    Raises:
+        ValueError: the file is missing, unreadable, or not a usable EPUB
     """
-    book = epub.read_epub(epub_path)
+    try:
+        book = epub.read_epub(epub_path)
+    except (OSError, KeyError, zipfile.BadZipFile, epub.EpubException) as e:
+        raise ValueError(f"Could not read EPUB '{epub_path}': {e}") from e
+
     chapters = []
 
     for item in _document_items_in_reading_order(book):

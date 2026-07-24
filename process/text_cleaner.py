@@ -8,19 +8,32 @@ from utils.chinese_utils import normalize_whitespace, is_chinese_char
 # Sentence-ending punctuation (Chinese full stop / exclamation / question + ASCII !?).
 # ASCII "." is intentionally excluded so decimals like "1.5万" aren't split.
 _SENT_ENDERS = "。！？!?"
+# Ellipsis characters. A RUN of these (Chinese fiction writes …… / ⋯⋯) ends a
+# sentence; a single one is usually mid-sentence hesitation ("我…我不知道"),
+# so it is deliberately not an ender on its own.
+_ELLIPSIS = "…⋯"
 # Closing quotes/brackets that belong WITH the sentence they terminate.
 _CLOSERS = "”’』」）》】)]"
 # Opening quotes/brackets.
 _OPENERS = "“‘『「（《【(["
-# Marks that should never start a sentence (orphaned closers + stray mid punctuation).
-_LEADING_JUNK = "，,、；;：:。．·…—–-　 " + _CLOSERS
+# Marks that should never start a sentence (orphaned closers + stray mid
+# punctuation). Ellipses and dashes are NOT junk: `……我不知道。` and
+# `——他没有回答。` are legitimate dialogue openers.
+_LEADING_JUNK = "，,、；;：:。．·　 " + _CLOSERS
 
-# One sentence = text up to an ender run, plus any closing quotes that trail it,
-# so `…理论。”` stays whole instead of orphaning the ” onto the next sentence.
-# Class contents are escaped because _CLOSERS contains "]".
+# One sentence = text up to a terminator, plus any closing quotes that trail
+# it, so `…理论。”` stays whole instead of orphaning the ” onto the next
+# sentence. A terminator is a run of enders OR a run of 2+ ellipsis chars;
+# single ellipses are consumed by the body. Class contents are escaped
+# because _CLOSERS contains "]".
+_E = re.escape(_SENT_ENDERS)
+_L = re.escape(_ELLIPSIS)
 _SENTENCE_RE = re.compile(
-    "[^" + re.escape(_SENT_ENDERS) + "]*"
-    "[" + re.escape(_SENT_ENDERS) + "]+"
+    # Body: anything that is neither an ender nor the start of an ellipsis
+    # run, where a lone ellipsis char stays inside the sentence.
+    "(?:[^" + _E + _L + "]|[" + _L + "](?![" + _L + "]))*"
+    # Terminator: enders, or the ellipsis run.
+    "(?:[" + _E + "]+|[" + _L + "]{2,})"
     "[" + re.escape(_CLOSERS) + "]*"
 )
 
@@ -98,9 +111,20 @@ def split_sentences(text: str, min_chinese_chars: int = 2) -> list[str]:
         sentences.append(tail)
 
     cleaned_sentences = []
+    # A bare ellipsis run terminates a fragment with no Han content of its own
+    # ("……我不知道。"). That's a trailing-off dialogue opener for what follows,
+    # so hold it and prepend it rather than dropping it as punctuation noise.
+    pending_opener = ""
     for sent in sentences:
         sent = _tidy_sentence(sent)
+        if not sent:
+            continue
         if _chinese_char_count(sent) >= min_chinese_chars:
-            cleaned_sentences.append(sent)
+            cleaned_sentences.append(pending_opener + sent)
+            pending_opener = ""
+        elif set(sent) <= set(_ELLIPSIS):
+            pending_opener = sent
+        else:
+            pending_opener = ""
 
     return cleaned_sentences

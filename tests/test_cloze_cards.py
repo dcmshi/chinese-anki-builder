@@ -1,5 +1,8 @@
 """Tests for cloze-deletion card generation."""
 
+import sqlite3
+import zipfile
+
 import genanki
 
 from anki.deck_builder import (
@@ -14,6 +17,17 @@ from process.word_selector import WordCard
 
 
 CEDICT = {"学习": DictEntry("學習", "学习", "xue2 xi2", ["to study", "to learn"])}
+
+
+def read_notes(apkg_path, tmp_path):
+    """Note rows (flds, tags) straight out of the built .apkg."""
+    with zipfile.ZipFile(apkg_path) as z:
+        z.extract("collection.anki2", tmp_path / "unpacked")
+    db = sqlite3.connect(tmp_path / "unpacked" / "collection.anki2")
+    try:
+        return db.execute("SELECT flds, tags FROM notes").fetchall()
+    finally:
+        db.close()
 
 
 def make_card(**overrides):
@@ -103,3 +117,29 @@ class TestBuildClozeDeck:
         result = build_deck("测试 Regular", [make_card()], CEDICT, str(output))
 
         assert result.exists()
+
+    def test_cards_without_a_deletion_are_skipped(self, tmp_path, capsys):
+        """A cloze note with no {{c1::...}} is rejected by Anki on import with
+        "no cloze deletions found". The condition is reachable whenever the
+        word isn't a literal substring of the sentence (e.g. extraction
+        injected a space, or a --from-review row was hand-edited)."""
+        good = make_card()
+        bad = make_card(word="学习", sentence="这个句子里没有那个词。")
+        output = tmp_path / "cloze.apkg"
+
+        build_deck("测试 Cloze", [good, bad], CEDICT, str(output), cloze=True)
+
+        notes = read_notes(output, tmp_path)
+        assert len(notes) == 1
+        assert "{{c1::学习}}" in notes[0][0]
+        assert "skipped 1 card" in capsys.readouterr().out
+
+    def test_regular_deck_keeps_cards_whose_word_is_absent(self, tmp_path):
+        """Only cloze notes are invalid without the word; a regular card still
+        teaches the word, so it must not be dropped."""
+        bad = make_card(word="学习", sentence="这个句子里没有那个词。")
+        output = tmp_path / "regular.apkg"
+
+        build_deck("测试 Regular", [bad], CEDICT, str(output))
+
+        assert len(read_notes(output, tmp_path)) == 1

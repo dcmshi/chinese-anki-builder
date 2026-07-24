@@ -109,8 +109,11 @@ def load_cards_from_csv(path: str) -> List[WordCard]:
             if not word or not sentence:
                 continue
 
+            # via float(): Excel/LibreOffice rewrite integer columns as "5.0",
+            # which int() rejects -- the card used to come back with
+            # frequency=0, silent data loss in a documented workflow.
             try:
-                frequency = int(row.get("frequency") or 0)
+                frequency = int(float(row.get("frequency") or 0))
             except ValueError:
                 frequency = 0
 

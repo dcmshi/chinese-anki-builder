@@ -18,11 +18,16 @@ class CEDICTBackend(TranslationBackend):
         self.cedict = None
 
     def initialize(self) -> bool:
-        """Initialize CEDICT backend."""
-        # CEDICT is loaded separately in the main pipeline
-        # This backend is always ready
-        self._initialized = True
-        return True
+        """
+        Ready only once the dictionary has been handed over.
+
+        The dictionary is loaded by the pipeline and injected via
+        set_cedict(). Reporting success without it made the manager announce
+        "✓ Initialized: CC-CEDICT", possibly select it as the active backend,
+        and then return "" for every sentence.
+        """
+        self._initialized = self.cedict is not None
+        return self._initialized
 
     def is_available(self) -> bool:
         """CEDICT backend is always available."""
@@ -56,6 +61,9 @@ class CEDICTBackend(TranslationBackend):
             cedict: CC-CEDICT dictionary
         """
         self.cedict = cedict
+        # A dictionary arriving after a failed init makes initialization
+        # viable again, so don't leave the backend permanently written off.
+        self._init_failed = False
 
     def get_name(self) -> str:
         """Get backend name."""

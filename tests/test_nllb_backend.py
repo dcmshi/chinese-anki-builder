@@ -5,6 +5,7 @@ heavy optional dependencies. They verify wiring, config resolution, language
 code mapping, and graceful behavior when deps/models are absent.
 """
 
+from pathlib import Path
 
 from translate.nllb_backend import NLLBTranslateBackend, NLLB_LANG_CODES
 from translate.manager import TranslationManager
@@ -135,3 +136,62 @@ class TestNLLBBatchDecoding:
         backend = NLLBTranslateBackend()
         assert backend.translate_batch([]) == []
         assert backend.is_initialized() is False
+
+class TestCorruptedModelRecovery:
+    """An interrupted download leaves a model.bin that exists but won't load;
+    the cache check only tested existence, so the backend never self-healed."""
+
+    def _stub_deps(self, monkeypatch, tmp_path, loads_ok):
+        import translate.nllb_backend as nllb_module
+
+        model_dir = tmp_path / "nllb_ct2_model"
+        model_dir.mkdir()
+        (model_dir / "model.bin").write_bytes(b"truncated")
+        monkeypatch.setattr(nllb_module, "get_data_dir", lambda: tmp_path)
+
+        state = {"downloads": 0, "translator_attempts": 0}
+
+        class FakeCT2:
+            @staticmethod
+            def Translator(path, device=None, compute_type=None):
+                state["translator_attempts"] += 1
+                if state["translator_attempts"] == 1 and not loads_ok:
+                    raise RuntimeError("unable to load model.bin")
+                return FakeTranslator()
+
+        class FakeTransformers:
+            class AutoTokenizer:
+                @staticmethod
+                def from_pretrained(repo, revision=None):
+                    return FakeTokenizer()
+
+        def fake_snapshot_download(repo_id, local_dir, revision=None):
+            state["downloads"] += 1
+            target = Path(local_dir)
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "model.bin").write_bytes(b"complete model")
+
+        import sys
+        import types
+
+        hub = types.ModuleType("huggingface_hub")
+        hub.snapshot_download = fake_snapshot_download
+        monkeypatch.setitem(sys.modules, "ctranslate2", FakeCT2)
+        monkeypatch.setitem(sys.modules, "transformers", FakeTransformers)
+        monkeypatch.setitem(sys.modules, "huggingface_hub", hub)
+        return state
+
+    def test_unloadable_cached_model_is_replaced(self, monkeypatch, tmp_path):
+        state = self._stub_deps(monkeypatch, tmp_path, loads_ok=False)
+        backend = NLLBTranslateBackend()
+
+        assert backend.initialize() is True
+        assert state["downloads"] == 1  # discarded and fetched again
+        assert state["translator_attempts"] == 2
+
+    def test_healthy_cached_model_is_not_re_downloaded(self, monkeypatch, tmp_path):
+        state = self._stub_deps(monkeypatch, tmp_path, loads_ok=True)
+        backend = NLLBTranslateBackend()
+
+        assert backend.initialize() is True
+        assert state["downloads"] == 0

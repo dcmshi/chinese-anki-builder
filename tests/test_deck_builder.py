@@ -161,6 +161,16 @@ class TestDeckBuilder:
     def test_highlight_word_absent_leaves_sentence_alone(self):
         assert highlight_word_in_sentence("学习", "你好世界") == "你好世界"
 
+    def test_missing_definitions_are_collected_not_printed(self, capsys):
+        """Regression: one print per card flooded output and garbled tqdm."""
+        card = WordCard(word="罗辑", sentence="罗辑说话了。", frequency=1)
+        missing = []
+
+        create_anki_note(card, {}, get_chinese_model(), missing_out=missing)
+
+        assert missing == ["罗辑"]
+        assert capsys.readouterr().out == ""
+
     def test_front_template_highlights_word_in_sentence(self):
         """Regression: the front used to show the word separately below the
         sentence instead of highlighting it inside (as README promises)."""

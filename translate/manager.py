@@ -77,6 +77,9 @@ class TranslationManager:
         self._cache_path = Path(cache_path) if cache_path else None
         self._persistent: Dict[str, Dict[str, Dict[str, str]]] = {}
         self._cache_dirty = False
+        # Set by initialize(); governs which backends the lazy fallback path
+        # may bring up.
+        self._prefer_offline = True
         if self._cache_path and self._cache_path.exists():
             try:
                 with open(self._cache_path, "r", encoding="utf-8") as f:
@@ -85,16 +88,29 @@ class TranslationManager:
                 print(f"Warning: ignoring unreadable translation cache: {e}")
                 self._persistent = {}
 
+    def _usable(self, backend: TranslationBackend) -> bool:
+        """Whether this backend is eligible under the current run's policy."""
+        if self._prefer_offline and backend.requires_internet():
+            return False
+        return backend.is_available()
+
     def initialize(self, prefer_offline: bool = True) -> bool:
         """
-        Initialize translation backends.
+        Initialize the active translation backend.
+
+        Only the first backend that initializes successfully is loaded here:
+        with all extras installed, eagerly initializing every available
+        backend put HY-MT's GGUF LLM, NLLB-600M and Argos in RAM at once
+        (several GB) to use exactly one of them. The rest are initialized
+        lazily, on the first sentence that actually needs a fallback.
 
         Args:
             prefer_offline: Prefer offline backends (default: True)
 
         Returns:
-            True if at least one backend initialized successfully
+            True if a backend initialized successfully
         """
+        self._prefer_offline = prefer_offline
         # An explicitly preferred backend is tried first regardless of its
         # quality score; if it fails to initialize, the normal quality-ranked
         # order takes over.
@@ -106,8 +122,6 @@ class TranslationManager:
                 ordered = matches + [b for b in ordered if b not in matches]
             else:
                 print(f"Warning: no backend matches preferred_backend '{preferred}'")
-
-        initialized_count = 0
 
         for backend in ordered:
             # Skip online backends if preferring offline
@@ -122,20 +136,17 @@ class TranslationManager:
 
             # Try to initialize
             try:
-                if backend.initialize():
+                if backend.try_initialize():
                     print(f"✓ Initialized: {backend.get_name()}")
-                    initialized_count += 1
-
-                    # Set as active if first successful backend
-                    if self.active_backend is None:
-                        self.active_backend = backend
-                        print(f"→ Using: {backend.get_name()}")
-                else:
-                    print(f"✗ Failed to initialize: {backend.get_name()}")
+                    self.active_backend = backend
+                    print(f"→ Using: {backend.get_name()}")
+                    break
+                print(f"✗ Failed to initialize: {backend.get_name()}")
             except Exception as e:
                 print(f"✗ Error initializing {backend.get_name()}: {e}")
+                backend._init_failed = True
 
-        return initialized_count > 0
+        return self.active_backend is not None
 
     def set_cedict(self, cedict: Dict):
         """
@@ -181,7 +192,14 @@ class TranslationManager:
         self._persistent_put(backend.get_name(), pair, text, result)
 
     def _fallback_translate(self, text: str, source_lang: str, target_lang: str) -> str:
-        """Try every initialized non-active backend in quality order."""
+        """
+        Try every usable non-active backend in quality order.
+
+        Fallbacks are initialized on demand here (see initialize()), and each
+        one's persistent cache is consulted first: fallback results are
+        written to that cache, so without reading it a re-run repeats full
+        model inference for sentences a fallback already translated.
+        """
         cache_key = (text, source_lang, target_lang)
         pair = f"{source_lang}->{target_lang}"
 
@@ -189,7 +207,15 @@ class TranslationManager:
             if backend == self.active_backend:
                 continue  # Already tried
 
-            if not backend.is_initialized():
+            if not self._usable(backend):
+                continue
+
+            cached = self._persistent_get(backend.get_name(), pair, text)
+            if cached:
+                self._cache[cache_key] = cached
+                return cached
+
+            if not backend.try_initialize():
                 continue
 
             try:

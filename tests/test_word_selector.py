@@ -72,6 +72,28 @@ class TestWordSelector:
 
         assert result is None
 
+    def test_short_match_is_still_accepted_as_fallback(self):
+        """Under-length matches are fine -- a short card beats no card."""
+        sentences = ["我在学习。"]  # below the default min_len of 10
+
+        assert find_sentence_for_word("学习", sentences) == "我在学习。"
+
+    def test_absurdly_long_fallback_is_rejected(self):
+        """Regression: with no in-range match, min(..., key=len) returned the
+        shortest match of ANY length -- text with unusual punctuation could
+        put a multi-thousand-character blob on a card and into gTTS."""
+        blob = "学习" + "啊" * 5000
+
+        assert find_sentence_for_word("学习", [blob], min_len=10, max_len=100) is None
+
+    def test_moderately_long_fallback_is_still_used(self):
+        # Just over max_len is a usable card; only unbounded blobs are dropped.
+        sentence = "学习" + "啊" * 120
+
+        result = find_sentence_for_word("学习", [sentence], min_len=10, max_len=100)
+
+        assert result == sentence
+
     def test_create_word_cards_with_cedict(self):
         """Test card creation filters out words without definitions."""
         words = ["你好", "罗辑", "世界"]  # "罗辑" is a name, not in dict

@@ -95,6 +95,14 @@ def build_sentence_index(sentences: List[str]) -> Dict[str, List[int]]:
     return index
 
 
+# How far past max_len the fallback (no in-range match) may go. Text with
+# unusual punctuation can leave "sentences" thousands of characters long --
+# unreadable on a card and abusive to send to TTS -- so the fallback accepts
+# an over-length match only within this factor and otherwise reports no
+# sentence, which the caller counts as skipped_no_sentence.
+_FALLBACK_MAX_LEN_FACTOR = 3
+
+
 def find_sentence_for_word(
     word: str,
     sentences: List[str],
@@ -105,7 +113,9 @@ def find_sentence_for_word(
     """
     Find a good example sentence containing the word.
 
-    Prefers shorter sentences for better readability.
+    Prefers shorter sentences for better readability. When nothing falls in
+    [min_len, max_len], a too-short match is accepted as-is but a too-long one
+    only up to _FALLBACK_MAX_LEN_FACTOR x max_len.
 
     Args:
         word: The word to find
@@ -127,9 +137,15 @@ def find_sentence_for_word(
     # Prefer shorter sentences (easier to understand)
     # But not too short (need context)
     in_range = [sent for sent in matching if min_len <= len(sent) <= max_len]
+    if in_range:
+        return min(in_range, key=len)
 
-    # Return shortest suitable sentence (fall back to any match)
-    return min(in_range or matching, key=len)
+    # Fall back to any match, but never to an unusable blob.
+    fallback = [sent for sent in matching if len(sent) <= max_len * _FALLBACK_MAX_LEN_FACTOR]
+    if not fallback:
+        return None
+
+    return min(fallback, key=len)
 
 
 def create_word_cards(

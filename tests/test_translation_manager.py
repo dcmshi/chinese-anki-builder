@@ -248,6 +248,94 @@ class TestPerItemBatchFailures:
         assert backend.translate_batch(["好", "坏", "行"]) == ["ok:好", "", "ok:行"]
 
 
+class TestLazyFallbackInitialization:
+    """Eagerly initializing every available backend put HY-MT's GGUF LLM,
+    NLLB-600M and Argos in RAM at once to use exactly one of them."""
+
+    def test_only_the_active_backend_is_initialized_at_startup(self):
+        primary = StubBackend("primary", 90, result="high")
+        fallback = StubBackend("fallback", 40, result="low")
+        manager = make_manager(primary, fallback)
+
+        assert manager.active_backend is primary
+        assert primary.is_initialized() is True
+        assert fallback.is_initialized() is False
+
+    def test_fallback_is_initialized_on_first_use(self):
+        primary = StubBackend("primary", 90, error=RuntimeError("boom"))
+        fallback = StubBackend("fallback", 40, result="low")
+        manager = make_manager(primary, fallback)
+        assert fallback.is_initialized() is False
+
+        assert manager.translate("这是一个句子。") == "low"
+        assert fallback.is_initialized() is True
+
+    def test_backend_that_fails_to_initialize_is_not_retried(self):
+        class FailingInit(StubBackend):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.init_attempts = 0
+
+            def initialize(self):
+                self.init_attempts += 1
+                return False
+
+        primary = StubBackend("primary", 90, error=RuntimeError("boom"))
+        broken = FailingInit("broken-fallback", 40, result="never")
+        manager = make_manager(primary, broken)
+
+        manager.translate("第一句。")
+        manager.translate("第二句。")
+
+        # One attempt total, not one per sentence.
+        assert broken.init_attempts == 1
+
+    def test_offline_preference_still_excludes_online_fallbacks(self):
+        class OnlineBackend(StubBackend):
+            def requires_internet(self):
+                return True
+
+        primary = StubBackend("primary", 90, error=RuntimeError("boom"))
+        online = OnlineBackend("cloud", 95, result="cloud output")
+        manager = TranslationManager(backends=[primary, online])
+        manager.initialize(prefer_offline=True)
+
+        assert manager.translate("这是一个句子。") == ""
+        assert online.calls == 0
+        assert online.is_initialized() is False
+
+
+class TestCEDICTBackendReadiness:
+    def test_reports_uninitialized_without_a_dictionary(self):
+        """Regression: initialize() returned True unconditionally, so a
+        manager used without set_cedict() announced CC-CEDICT as ready, could
+        select it as active, and returned "" for every sentence."""
+        from translate.cedict_backend import CEDICTBackend
+
+        backend = CEDICTBackend()
+
+        assert backend.initialize() is False
+        assert backend.is_initialized() is False
+
+    def test_ready_once_the_dictionary_arrives(self):
+        from process.cedict_loader import DictEntry
+        from translate.cedict_backend import CEDICTBackend
+
+        backend = CEDICTBackend()
+        backend.initialize()  # fails, must not latch permanently
+        backend.set_cedict({"你好": DictEntry("你好", "你好", "ni3 hao3", ["hello"])})
+
+        assert backend.try_initialize() is True
+
+    def test_manager_reports_no_backend_when_only_cedict_and_no_dictionary(self):
+        from translate.cedict_backend import CEDICTBackend
+
+        manager = TranslationManager(backends=[CEDICTBackend()])
+
+        assert manager.initialize() is False
+        assert manager.get_active_backend_name() == "None"
+
+
 class TestPersistentCache:
     def test_cache_survives_across_manager_instances(self, tmp_path):
         cache_file = tmp_path / "translations.json"
@@ -287,6 +375,29 @@ class TestPersistentCache:
         manager = make_manager(primary)
         manager.translate("这是一个句子。")
         manager.cleanup()  # must not raise or write anywhere
+
+    def test_fallback_reads_the_persistent_cache(self, tmp_path):
+        """Regression: fallback results were written to the cache but never
+        read from it, so a re-run repeated full model inference for every
+        sentence a fallback had already translated."""
+        cache_file = tmp_path / "translations.json"
+
+        primary_a = StubBackend("primary", 90, error=RuntimeError("boom"))
+        fallback_a = StubBackend("fallback", 40, result="fb output")
+        manager_a = TranslationManager(backends=[primary_a, fallback_a], cache_path=cache_file)
+        manager_a.initialize()
+        assert manager_a.translate("这是一个句子。") == "fb output"
+        manager_a.cleanup()
+
+        primary_b = StubBackend("primary", 90, error=RuntimeError("boom"))
+        fallback_b = StubBackend("fallback", 40, result="recomputed")
+        manager_b = TranslationManager(backends=[primary_b, fallback_b], cache_path=cache_file)
+        manager_b.initialize()
+
+        assert manager_b.translate("这是一个句子。") == "fb output"
+        assert fallback_b.calls == 0
+        # A cache hit must not even load the fallback's model.
+        assert fallback_b.is_initialized() is False
 
     def test_cache_is_written_atomically(self, tmp_path, monkeypatch):
         """The cache is rewritten after every batch; a crash mid-write used to

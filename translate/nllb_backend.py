@@ -14,6 +14,7 @@ falls back to Argos. Install the extras to opt in:
 """
 
 import os
+import shutil
 from typing import List, Optional, Dict, Any
 
 from translate.base import TranslationBackend
@@ -83,6 +84,15 @@ class NLLBTranslateBackend(TranslationBackend):
         except ImportError:
             return False
 
+    def _download_model(self, model_dir, snapshot_download):
+        print(f"Downloading NLLB CT2 model '{self.model_repo}' (first run, large)...")
+        snapshot_download(
+            repo_id=self.model_repo,
+            local_dir=str(model_dir),
+            revision=self.model_revision,
+        )
+        print("NLLB model downloaded.")
+
     def initialize(self) -> bool:
         """Download (first run) and load the NLLB model + tokenizer."""
         try:
@@ -92,19 +102,25 @@ class NLLBTranslateBackend(TranslationBackend):
 
             model_dir = get_data_dir() / "nllb_ct2_model"
             if not (model_dir / "model.bin").exists():
-                print(f"Downloading NLLB CT2 model '{self.model_repo}' (first run, large)...")
-                snapshot_download(
-                    repo_id=self.model_repo,
-                    local_dir=str(model_dir),
-                    revision=self.model_revision,
-                )
-                print("NLLB model downloaded.")
+                self._download_model(model_dir, snapshot_download)
             else:
                 print("Using cached NLLB CT2 model")
 
-            self.translator = ctranslate2.Translator(
-                str(model_dir), device=self.device, compute_type=self.compute_type
-            )
+            try:
+                self.translator = ctranslate2.Translator(
+                    str(model_dir), device=self.device, compute_type=self.compute_type
+                )
+            except Exception as e:
+                # An interrupted download leaves a model.bin that exists but
+                # won't load, and the "is it cached?" check above would keep
+                # trusting it on every future run. Discard it and fetch once.
+                print(f"Cached NLLB model failed to load ({e}); re-downloading once...")
+                shutil.rmtree(model_dir, ignore_errors=True)
+                self._download_model(model_dir, snapshot_download)
+                self.translator = ctranslate2.Translator(
+                    str(model_dir), device=self.device, compute_type=self.compute_type
+                )
+
             self.tokenizer = transformers.AutoTokenizer.from_pretrained(
                 self.tokenizer_repo, revision=self.tokenizer_revision
             )

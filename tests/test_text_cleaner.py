@@ -72,6 +72,44 @@ class TestSplitSentences:
         assert result[1] == "是的。"
 
 
+class TestEllipsisHandling:
+    """`……` is extremely common in fiction. Treating it as no ender at all
+    merged whole passages into one mega-sentence, which then blew past
+    max_sentence_length and got skipped (or landed over-length on a card)."""
+
+    def test_ellipsis_run_ends_a_sentence(self):
+        result = split_sentences("他站在那里……她一句话也没说……最后他走了。")
+
+        assert result == ["他站在那里……", "她一句话也没说……", "最后他走了。"]
+
+    def test_ellipsis_run_is_kept_with_its_sentence(self):
+        assert split_sentences("我不知道……")[0].endswith("……")
+
+    def test_single_ellipsis_stays_mid_sentence(self):
+        # A lone … is hesitation, not a terminator: splitting there would
+        # produce two fragments of one spoken line.
+        result = split_sentences("我…我不知道该怎么说才好。")
+
+        assert result == ["我…我不知道该怎么说才好。"]
+
+    def test_leading_ellipsis_is_preserved(self):
+        # Regression: … was in the leading-junk set, so a trailing-off
+        # dialogue opener lost its ellipsis.
+        result = split_sentences("……我不知道。")
+
+        assert result == ["……我不知道。"]
+
+    def test_leading_dash_is_preserved(self):
+        result = split_sentences("——他没有回答这个问题。")
+
+        assert result == ["——他没有回答这个问题。"]
+
+    def test_ideographic_ellipsis_also_ends_a_sentence(self):
+        result = split_sentences("他犹豫了⋯⋯然后点了点头。")
+
+        assert result == ["他犹豫了⋯⋯", "然后点了点头。"]
+
+
 class TestSplitterQualityGates:
     """Structural guarantees over a realistic multi-sentence dialogue blob."""
 

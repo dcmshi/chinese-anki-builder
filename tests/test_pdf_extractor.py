@@ -126,3 +126,8 @@ class TestExtractTextFromPdf:
         assert "Warning" in warning
         assert "page 2" in warning
 
+    def test_missing_file_raises_error_naming_path(self, tmp_path):
+        missing = tmp_path / "does_not_exist.pdf"
+
+        with pytest.raises(ValueError, match="does_not_exist.pdf"):
+            extract_text_from_pdf(str(missing))

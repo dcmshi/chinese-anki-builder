@@ -1,7 +1,9 @@
 """Extract text from PDF files."""
 
+import io
 import re
 from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 from typing import List, Optional
 from extract.epub_extractor import Chapter
 
@@ -97,7 +99,14 @@ def extract_text_from_pdf(pdf_path: str) -> List[Chapter]:
     Returns:
         List of Chapter objects
     """
-    reader = PdfReader(pdf_path)
+    # Read the bytes up front so the file handle is released immediately
+    # (keeping it open for the reader's lifetime locks the file on Windows).
+    try:
+        with open(pdf_path, "rb") as f:
+            data = f.read()
+        reader = PdfReader(io.BytesIO(data))
+    except (OSError, PdfReadError) as e:
+        raise ValueError(f"Could not open PDF '{pdf_path}': {e}") from e
 
     all_text = []
     for page_num, page in enumerate(reader.pages, start=1):
