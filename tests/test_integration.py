@@ -187,3 +187,60 @@ class TestFullPipeline:
         for card in cards:
             assert card.sentence_translation.startswith("[translation of")
             assert card.definition == "test definition"
+
+    def test_review_mode_still_exports_stats(self, book_epub, offline_pipeline, tmp_path, capsys):
+        """Regression: the early return in --review mode skipped --stats
+        entirely, with no warning."""
+        import json
+
+        stats_path = tmp_path / "stats.json"
+        review_csv = tmp_path / "cards.csv"
+        process_pipeline(
+            input_path=str(book_epub),
+            deck_name="ReviewStats",
+            top_words=8,
+            min_freq=1,
+            output_dir=str(tmp_path / "out"),
+            review_file=str(review_csv),
+            stats_file=str(stats_path),
+            enable_tts=True,  # ignored in review mode -- must say so
+        )
+
+        stats = json.loads(stats_path.read_text(encoding="utf-8"))
+        assert stats["cards_created"] > 0
+        assert stats["review_file"] == str(review_csv)
+        assert stats["output"] is None  # no .apkg was built
+        assert "audio is not generated in --review mode" in capsys.readouterr().out
+
+    def test_stats_report_pre_hsk_multi_char_count(
+        self, book_epub, offline_pipeline, tmp_path, monkeypatch
+    ):
+        """Regression: multi_char_words reported the post-HSK-filter count."""
+        import json
+
+        import main as main_mod
+
+        # Keep exactly one of the book's words in the "HSK" pool (one that has
+        # a definition, so it still produces a card).
+        cedict = offline_pipeline
+        monkeypatch.setattr(
+            main_mod,
+            "filter_by_hsk",
+            lambda words, levels, **kw: [w for w in words if w in cedict][:1],
+        )
+
+        stats_path = tmp_path / "stats.json"
+        process_pipeline(
+            input_path=str(book_epub),
+            deck_name="HskStats",
+            top_words=8,
+            min_freq=1,
+            output_dir=str(tmp_path / "out"),
+            stats_file=str(stats_path),
+            hsk_levels=[1],
+        )
+
+        stats = json.loads(stats_path.read_text(encoding="utf-8"))
+        assert stats["words_within_hsk_levels"] == 1
+        assert stats["multi_char_words"] > 1  # the pre-filter pool
+        assert stats["hsk_levels"] == [1]

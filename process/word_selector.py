@@ -223,12 +223,21 @@ def create_word_cards(
         print(f"Translating {len(unique_sentences)} example sentences...")
         batch = getattr(translation_manager, "translate_batch", None)
         if callable(batch):
-            translated = batch(unique_sentences)
+            translated = list(batch(unique_sentences))
         else:
             translated = [
                 translation_manager.translate(sent)
                 for sent in tqdm(unique_sentences, desc="Translating", unit="sentence")
             ]
+        # zip() would silently truncate, leaving tail sentences untranslated
+        # with no clue why; say so and pad instead.
+        if len(translated) != len(unique_sentences):
+            print(
+                f"Warning: translation backend returned {len(translated)} results "
+                f"for {len(unique_sentences)} sentences; the remainder will have "
+                f"no translation"
+            )
+            translated = (translated + [""] * len(unique_sentences))[: len(unique_sentences)]
         translations = dict(zip(unique_sentences, translated))
 
     # Phase 3: assemble the cards (order still follows the input word list).

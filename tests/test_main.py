@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from main import load_config, main, resolve_setting
+from main import load_config, main, normalize_hsk_levels, resolve_setting
 from utils.file_utils import sanitize_filename, write_stats_json
 
 
@@ -28,6 +28,91 @@ class TestLoadConfig:
         cfg.write_text("", encoding="utf-8")
 
         assert load_config(str(cfg)) == {}
+
+    def test_config_with_bom_is_readable(self, tmp_path):
+        """Regression: a config saved by Windows Notepad carries a BOM, which
+        yaml.safe_load rejects with a cryptic scanner error."""
+        cfg = tmp_path / "bom.yaml"
+        cfg.write_text("top_words: 42\n", encoding="utf-8-sig")
+
+        assert load_config(str(cfg)) == {"top_words": 42}
+
+
+class TestNormalizeHskLevels:
+    """Regression: an hsk_levels value from config.yaml reached filter_by_hsk
+    unvalidated -- a scalar raised a raw TypeError deep in the pipeline."""
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (None, []),
+            ([], []),
+            (3, [1, 2, 3]),  # scalar reads like --hsk 3: everything up to 3
+            ("2-4", [2, 3, 4]),
+            ("1,3", [1, 3]),
+            ([3], [3]),  # an explicit list means exactly those levels
+            ([1, 3, 7], [1, 3, 7]),
+        ],
+    )
+    def test_accepted_forms(self, value, expected):
+        assert normalize_hsk_levels(value) == expected
+
+    @pytest.mark.parametrize("value", [8, "abc", [0], [9], ["3"], {"level": 3}])
+    def test_invalid_values_raise_value_error(self, value):
+        with pytest.raises(ValueError):
+            normalize_hsk_levels(value)
+
+    def test_bad_config_value_prints_error_not_traceback(self, monkeypatch, capsys, tmp_path):
+        cfg = tmp_path / "config.yaml"
+        cfg.write_text("hsk_levels: 99\n", encoding="utf-8")
+        monkeypatch.setattr(
+            "sys.argv", ["main.py", "--input", "x.epub", "--config", str(cfg)]
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        assert exc_info.value.code == 1
+        err = capsys.readouterr().err
+        assert "ERROR: Invalid HSK level" in err
+        assert "Traceback" not in err
+
+
+class TestNegatableBooleanFlags:
+    """Regression: --cloze/--tts/--tts-sentences were store_true, so a
+    `cloze: true` in config.yaml could not be switched off for one run."""
+
+    def _resolved_params(self, monkeypatch, argv, config):
+        captured = {}
+        monkeypatch.setattr("sys.argv", ["main.py"] + argv)
+        monkeypatch.setattr("main.load_config", lambda path=None: config)
+        monkeypatch.setattr("main.process_pipeline", lambda **kwargs: captured.update(kwargs))
+        main()
+        return captured
+
+    def test_no_flag_overrides_config_true(self, monkeypatch):
+        params = self._resolved_params(
+            monkeypatch,
+            ["--input", "x.epub", "--no-cloze", "--no-tts", "--no-tts-sentences"],
+            {"cloze": True, "enable_tts": True, "enable_sentence_tts": True},
+        )
+
+        assert params["cloze"] is False
+        assert params["enable_tts"] is False
+        assert params["enable_sentence_tts"] is False
+
+    def test_flag_still_enables(self, monkeypatch):
+        params = self._resolved_params(
+            monkeypatch, ["--input", "x.epub", "--cloze", "--tts"], {}
+        )
+
+        assert params["cloze"] is True
+        assert params["enable_tts"] is True
+
+    def test_config_value_used_when_flag_absent(self, monkeypatch):
+        params = self._resolved_params(monkeypatch, ["--input", "x.epub"], {"cloze": True})
+
+        assert params["cloze"] is True
 
 
 class TestCliErrorHandling:

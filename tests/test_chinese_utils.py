@@ -5,6 +5,7 @@ import pytest
 from utils.chinese_utils import (
     contains_chinese,
     is_chinese_char,
+    is_han_only,
     is_multi_char_word,
     normalize_whitespace,
 )
@@ -18,6 +19,40 @@ class TestIsChineseChar:
     @pytest.mark.parametrize("char", ["a", "1", "。", "，", " ", "ん", "한"])
     def test_non_han_characters(self, char):
         assert is_chinese_char(char) is False
+
+
+class TestExtendedHanRanges:
+    """Regression: only U+4E00-U+9FFF was recognised, so Extension A and the
+    compatibility ideographs (older/classical texts, names) were invisible --
+    counted as punctuation by every caller."""
+
+    @pytest.mark.parametrize(
+        "char",
+        [
+            "㐀",  # first CJK Extension A ideograph
+            "䶿",  # last CJK Extension A ideograph
+            "豈",  # first CJK Compatibility ideograph
+            "﫿",  # last CJK Compatibility ideograph
+        ],
+    )
+    def test_extended_han_is_chinese(self, char):
+        assert is_chinese_char(char) is True
+
+    @pytest.mark.parametrize("char", ["㏿", "䷀", "", "ﬀ"])
+    def test_just_outside_the_ranges_is_not(self, char):
+        assert is_chinese_char(char) is False
+
+    def test_extension_a_word_counts_as_multi_char(self):
+        assert is_multi_char_word("㐀㐁") is True
+
+
+class TestIsHanOnly:
+    def test_pure_han(self):
+        assert is_han_only("学习") is True
+
+    @pytest.mark.parametrize("word", ["iPhone手机", "QQ群", "3维", "你好，", "学 习", "hello", ""])
+    def test_anything_else_is_rejected(self, word):
+        assert is_han_only(word) is False
 
 
 class TestContainsChinese:

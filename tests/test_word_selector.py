@@ -256,6 +256,31 @@ class TestBatchedTranslation:
         assert manager.single_calls == 0
         assert all(c.sentence_translation == "batch:你好世界这是一个测试句子。" for c in cards)
 
+    def test_short_batch_result_warns_instead_of_truncating(self, capsys):
+        """Regression: zip() silently dropped the tail when a backend returned
+        fewer translations than it was given."""
+
+        class ShortBatchManager:
+            def translate_batch(self, texts, source_lang="zh", target_lang="en"):
+                return ["only one translation"]
+
+        sentences = [
+            "第一个句子在这里出现了。",
+            "第二个句子也在这里出现。",
+        ]
+        cards = create_word_cards(
+            ["第一个", "第二个"],
+            sentences,
+            Counter({"第一个": 3, "第二个": 2}),
+            cedict=None,
+            translation_manager=ShortBatchManager(),
+        )
+
+        assert len(cards) == 2
+        translations = sorted(c.sentence_translation for c in cards)
+        assert translations == ["", "only one translation"]
+        assert "Warning" in capsys.readouterr().out
+
     def test_manager_without_translate_batch_still_works(self):
         """Simple managers/stubs exposing only translate() keep working."""
 

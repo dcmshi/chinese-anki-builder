@@ -8,7 +8,7 @@ Generate Anki flashcards for learning Chinese from EPUB and PDF books.
 import argparse
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import yaml
 from tqdm import tqdm
 
@@ -27,7 +27,7 @@ from process.text_cleaner import clean_text, split_sentences
 from process.tokenizer import tokenize_text, compute_word_frequency, filter_multi_char_words
 from process.cedict_loader import load_cedict
 from process.word_selector import select_top_words, create_word_cards
-from process.hsk_filter import filter_by_hsk, parse_hsk_levels
+from process.hsk_filter import filter_by_hsk, parse_hsk_levels, validate_hsk_levels
 from process.review import export_cards_to_csv, load_cards_from_csv
 from process.known_words import load_known_words
 from anki.deck_builder import build_deck
@@ -42,18 +42,52 @@ def load_config(config_path: str = None) -> dict:
 
     An explicitly passed path must exist -- silently falling back to
     ./config.yaml would run with settings the user didn't choose.
+
+    Read as utf-8-sig: a config saved by Windows Notepad starts with a BOM,
+    which yaml.safe_load rejects with a cryptic scanner error. The rest of the
+    project tolerates BOMs (known-words and HSK lists, review CSVs).
     """
     if config_path:
         if not Path(config_path).exists():
             raise FileNotFoundError(f"Config file not found: {config_path}")
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, "r", encoding="utf-8-sig") as f:
             return yaml.safe_load(f) or {}
 
     if Path("config.yaml").exists():
-        with open("config.yaml", "r", encoding="utf-8") as f:
+        with open("config.yaml", "r", encoding="utf-8-sig") as f:
             return yaml.safe_load(f) or {}
 
     return {}
+
+
+def normalize_hsk_levels(value) -> List[int]:
+    """
+    Turn a resolved hsk_levels setting into a validated list of levels.
+
+    Accepts what --hsk accepts plus what YAML can produce: a list ([2, 3]), a
+    scalar (hsk_levels: 3, read like --hsk 3 => everything up to 3), or a spec
+    string ("2-4"). An unvalidated config value used to reach filter_by_hsk
+    and raise a raw TypeError.
+
+    Args:
+        value: Raw setting (None, int, str, or list)
+
+    Returns:
+        List of HSK levels ([] means no filtering)
+
+    Raises:
+        ValueError: the value isn't a usable level spec
+    """
+    if not value:
+        return []
+    if isinstance(value, int):
+        return parse_hsk_levels(str(value))
+    if isinstance(value, str):
+        return parse_hsk_levels(value)
+    if isinstance(value, (list, tuple)):
+        # An explicit list means exactly those levels (unlike a scalar).
+        return validate_hsk_levels(value)
+    raise ValueError(f"Invalid hsk_levels setting: {value!r} (use e.g. 3, '2-4', or [1, 3])")
 
 
 def resolve_setting(cli_value, config: dict, config_keys: List[str], default):
@@ -242,7 +276,10 @@ def process_pipeline(
     # Step 5: Filter to multi-character words
     print("\nFiltering to multi-character words...")
     multi_char_freq = filter_multi_char_words(stats.word_freq)
-    print(f"Multi-character words: {len(multi_char_freq)}")
+    # Recorded before any HSK filtering, so the exported stat means what its
+    # name says (it used to report the post-filter count).
+    multi_char_word_count = len(multi_char_freq)
+    print(f"Multi-character words: {multi_char_word_count}")
 
     # Step 5.5: HSK filtering (optional) -- restrict the candidate pool BEFORE
     # top-N selection so the deck still gets the full requested word count.
@@ -312,11 +349,45 @@ def process_pipeline(
     print(f"Created {len(cards)} cards with example sentences")
 
     # Flush the persistent translation cache and release backend models.
+    translation_backend_name = translation_manager.get_active_backend_name()
     translation_manager.cleanup()
 
     if not cards:
         print("ERROR: No cards created. No suitable sentences found.")
         sys.exit(1)
+
+    def export_stats(output: Optional[Path] = None, review_path: Optional[Path] = None):
+        """Write the stats JSON for this run (also called in --review mode)."""
+        covered_tokens = sum(card.frequency for card in cards)
+        export = {
+            "input": str(input_path),
+            "deck_name": deck_name,
+            "output": str(output) if output else None,
+            "chapters": len(chapters),
+            "sentences": len(sentences),
+            "total_tokens": stats.total_words,
+            "unique_words": stats.unique_words,
+            "multi_char_words": multi_char_word_count,
+            "words_within_hsk_levels": len(multi_char_freq) if hsk_levels else None,
+            "hsk_levels": list(hsk_levels) if hsk_levels else [],
+            "words_selected": len(selected_words),
+            "cards_created": len(cards),
+            "skipped_no_definition": card_stats.get("skipped_no_definition", 0),
+            "skipped_no_sentence": card_stats.get("skipped_no_sentence", 0),
+            "known_words_excluded": known_in_book,
+            "token_coverage": round(covered_tokens / stats.total_words, 4)
+            if stats.total_words
+            else 0.0,
+            "translation_backend": translation_backend_name,
+            "cards": [
+                {"word": card.word, "frequency": card.frequency, "chapter": card.chapter}
+                for card in cards
+            ],
+        }
+        if review_path is not None:
+            export["review_file"] = str(review_path)
+        write_stats_json(stats_file, export)
+        print(f"Stats exported to {stats_file}")
 
     # Step 8.3: Static HTML preview (optional) — written whether or not the
     # run continues, so it can accompany the CSV review or a normal build.
@@ -331,6 +402,15 @@ def process_pipeline(
     if review_file:
         review_path = export_cards_to_csv(cards, review_file, cedict=cedict)
         print(f"\nReview file written to {review_path}")
+        if enable_tts or enable_sentence_tts:
+            print(
+                "Note: audio is not generated in --review mode (deleted rows would "
+                "cost downloads); pass --tts to the --from-review build instead."
+            )
+        # Stats describe selection/translation, all of which has happened by
+        # now, so a --review run still honours --stats.
+        if stats_file:
+            export_stats(review_path=review_path)
         print("Edit or delete rows (blank word/sentence = drop), then build with:")
         print(f'  uv run python main.py --from-review "{review_path}" --deck "{deck_name}"')
         return
@@ -353,32 +433,7 @@ def process_pipeline(
 
     # Step 10: Export stats if requested
     if stats_file:
-        covered_tokens = sum(card.frequency for card in cards)
-        export = {
-            "input": str(input_path),
-            "deck_name": deck_name,
-            "output": str(output_path),
-            "chapters": len(chapters),
-            "sentences": len(sentences),
-            "total_tokens": stats.total_words,
-            "unique_words": stats.unique_words,
-            "multi_char_words": len(multi_char_freq),
-            "words_selected": len(selected_words),
-            "cards_created": len(cards),
-            "skipped_no_definition": card_stats.get("skipped_no_definition", 0),
-            "skipped_no_sentence": card_stats.get("skipped_no_sentence", 0),
-            "known_words_excluded": known_in_book,
-            "token_coverage": round(covered_tokens / stats.total_words, 4)
-            if stats.total_words
-            else 0.0,
-            "translation_backend": translation_manager.get_active_backend_name(),
-            "cards": [
-                {"word": card.word, "frequency": card.frequency, "chapter": card.chapter}
-                for card in cards
-            ],
-        }
-        write_stats_json(stats_file, export)
-        print(f"Stats exported to {stats_file}")
+        export_stats(output=output_path)
 
     print("\n" + "=" * 60)
     print("✓ Deck generation complete!")
@@ -505,23 +560,26 @@ def main():
         help="Export pipeline stats to this JSON file (default: config stats_file)",
     )
 
+    # BooleanOptionalAction (not store_true) so each flag has a --no- form:
+    # a `cloze: true` / `enable_tts: true` in config.yaml must be switchable
+    # off for a single run.
     parser.add_argument(
         "--cloze",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=None,
         help="Build cloze-deletion cards (word blanked out of the sentence)",
     )
 
     parser.add_argument(
         "--tts",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=None,
         help="Generate word audio with gTTS (requires internet and the tts extra)",
     )
 
     parser.add_argument(
         "--tts-sentences",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=None,
         help="Also generate example-sentence audio with gTTS",
     )
@@ -599,8 +657,8 @@ def main():
             "max_sentence_length": resolve(None, ["max_sentence_length"], 100),
             "stats_file": resolve(args.stats, ["stats_file"], None),
             "cloze": resolve(args.cloze, ["cloze"], False),
-            "hsk_levels": resolve(
-                parse_hsk_levels(args.hsk) if args.hsk else None, ["hsk_levels"], []
+            "hsk_levels": normalize_hsk_levels(
+                resolve(parse_hsk_levels(args.hsk) if args.hsk else None, ["hsk_levels"], [])
             ),
             # The translation system reads its own keys (preferred_backend,
             # prefer_offline, translation_cache, model overrides) from the

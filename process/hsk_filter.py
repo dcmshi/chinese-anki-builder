@@ -8,7 +8,7 @@ CC-CEDICT, they are downloaded on first use and cached under data/hsk/.
 import re
 import requests
 from pathlib import Path
-from typing import Set, List, Optional
+from typing import Iterable, Set, List, Optional
 
 from utils.file_utils import atomic_write_bytes, ensure_dir, get_data_dir
 
@@ -25,6 +25,29 @@ _LEVEL_FILE_KEYS = {1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7-9"}
 _HOMOGRAPH_MARKER_RE = re.compile(r"\d+$")
 
 
+def validate_hsk_levels(levels: Iterable) -> List[int]:
+    """
+    Validate explicit levels (e.g. a `hsk_levels: [1, 3]` list in config.yaml).
+
+    Args:
+        levels: Iterable of level numbers
+
+    Returns:
+        The levels as a list
+
+    Raises:
+        ValueError: a level isn't an integer in 1-7
+    """
+    validated = []
+    for level in levels:
+        if isinstance(level, bool) or not isinstance(level, int):
+            raise ValueError(f"Invalid HSK level {level!r}: must be an integer 1-7")
+        if level not in _LEVEL_FILE_KEYS:
+            raise ValueError(f"Invalid HSK level {level}: must be 1-7 (7 = the 7-9 band)")
+        validated.append(level)
+    return validated
+
+
 def parse_hsk_levels(spec: str) -> List[int]:
     """
     Parse a --hsk CLI value into a list of levels.
@@ -37,24 +60,27 @@ def parse_hsk_levels(spec: str) -> List[int]:
     Level 7 stands for the combined HSK 7-9 band.
     """
     spec = spec.strip()
+    invalid = ValueError(f"Invalid HSK level spec: {spec!r} (use e.g. '3', '2-4', '1,3')")
 
     if re.fullmatch(r"\d+-\d+", spec):
         start, end = (int(x) for x in spec.split("-"))
         levels = list(range(start, end + 1))
     elif "," in spec:
-        levels = [int(x) for x in spec.split(",")]
+        # Empty fields ("1,3," from a trailing comma) would raise a raw
+        # int('') ValueError; drop them and let the checks below report.
+        fields = [x.strip() for x in spec.split(",") if x.strip()]
+        if not all(f.isdigit() for f in fields):
+            raise invalid
+        levels = [int(f) for f in fields]
     elif spec.isdigit():
         levels = list(range(1, int(spec) + 1))
     else:
-        raise ValueError(f"Invalid HSK level spec: {spec!r} (use e.g. '3', '2-4', '1,3')")
+        raise invalid
 
-    for level in levels:
-        if level not in _LEVEL_FILE_KEYS:
-            raise ValueError(f"Invalid HSK level {level}: must be 1-7 (7 = the 7-9 band)")
     if not levels:
-        raise ValueError(f"Invalid HSK level spec: {spec!r}")
+        raise invalid
 
-    return levels
+    return validate_hsk_levels(levels)
 
 
 def _hsk_cache_dir(cache_dir: Optional[Path] = None) -> Path:
@@ -120,11 +146,11 @@ def load_hsk_words(levels: List[int], cache_dir: Optional[Path] = None) -> Set[s
         Set of words in those HSK levels
     """
     words: Set[str] = set()
-    for level in levels:
-        if level not in _LEVEL_FILE_KEYS:
-            raise ValueError(f"Invalid HSK level {level}: must be 1-7 (7 = the 7-9 band)")
+    for level in validate_hsk_levels(levels):
         path = download_hsk_list(level, cache_dir=cache_dir)
-        words |= _parse_hsk_words(path.read_text(encoding="utf-8"))
+        # utf-8-sig: a hand-placed list saved by a Windows editor starts with
+        # a BOM, which would otherwise stay glued to the first word.
+        words |= _parse_hsk_words(path.read_text(encoding="utf-8-sig"))
     return words
 
 

@@ -94,8 +94,13 @@ def parse_cedict_line(line: str) -> Optional[DictEntry]:
         return None
 
     try:
-        # Split into word part and definition part
+        # Split into word part and definition part. "/" is CC-CEDICT's sense
+        # separator and every real line ends with one; only drop that final
+        # empty field, so a hand-placed file without the trailing "/" doesn't
+        # silently lose its last sense.
         parts = line.split("/")
+        if parts and not parts[-1].strip():
+            parts = parts[:-1]
 
         # Extract words and pinyin
         word_part = parts[0].strip()
@@ -116,7 +121,7 @@ def parse_cedict_line(line: str) -> Optional[DictEntry]:
         pinyin = word_parts[1].replace("]", "").strip()
 
         # Get definitions (filter empty ones)
-        definitions = [d.strip() for d in parts[1:-1] if d.strip()]
+        definitions = [d.strip() for d in parts[1:] if d.strip()]
 
         return DictEntry(traditional, simplified, pinyin, definitions)
 

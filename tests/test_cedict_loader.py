@@ -151,6 +151,13 @@ class TestCEDICTLoader:
         # The bad payload must not be written to the cache.
         assert not (tmp_path / "cedict.txt").exists()
 
+    def test_line_without_trailing_slash_keeps_last_sense(self):
+        """CC-CEDICT always ends a line with "/", but a hand-placed file may
+        not; parts[1:-1] used to drop that line's final sense."""
+        entry = parse_cedict_line("你好 你好 [ni3 hao3] /hello/hi")
+
+        assert entry.definitions == ["hello", "hi"]
+
     def test_download_is_written_atomically(self, tmp_path, monkeypatch):
         """Regression: a plain write_bytes() interrupted mid-write leaves a
         truncated dictionary that parses fine and is trusted forever."""

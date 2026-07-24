@@ -175,12 +175,20 @@ class NLLBTranslateBackend(TranslationBackend):
         if not indexed:
             return results
 
-        if not self._initialized:
-            if not self.initialize():
-                raise RuntimeError("NLLB backend not initialized")
+        if not self.try_initialize():
+            raise RuntimeError("NLLB backend not initialized")
 
-        src_code = NLLB_LANG_CODES.get(source_lang.lower(), "zho_Hans")
-        tgt_code = NLLB_LANG_CODES.get(target_lang.lower(), "eng_Latn")
+        # Unknown codes used to fall back to zh->en, so a typo produced a
+        # plausible-looking translation of the wrong pair instead of an error.
+        for label, code in (("source", source_lang), ("target", target_lang)):
+            if code.lower() not in NLLB_LANG_CODES:
+                raise ValueError(
+                    f"Unsupported NLLB {label} language {code!r}: "
+                    f"known codes are {sorted(NLLB_LANG_CODES)}"
+                )
+
+        src_code = NLLB_LANG_CODES[source_lang.lower()]
+        tgt_code = NLLB_LANG_CODES[target_lang.lower()]
 
         # Setting src_lang makes encode() prepend the source language token.
         self.tokenizer.src_lang = src_code

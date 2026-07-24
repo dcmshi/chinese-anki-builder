@@ -1,5 +1,6 @@
 """Translate Chinese sentences using CC-CEDICT word-by-word translation."""
 
+import re
 from typing import Dict
 from process.cedict_loader import DictEntry
 from process.tokenizer import tokenize_text
@@ -103,11 +104,12 @@ def improve_translation(translation: str) -> str:
 
     # Fix common patterns
     # Pattern: "one [classifier] [noun]" -> "a [noun]"
-    import re
     result = re.sub(r'\bone (piece|item|one) ', r'a ', result)
 
-    # Remove isolated single-letter particles
-    result = re.sub(r'\b[的了着过]\b', '', result)
+    # (A particle-stripping re.sub used to sit here. It ran on the already
+    # translated English string, where translate_sentence has dropped 的/了/
+    # 着/过 via its particle table -- it could only ever have deleted a
+    # character out of an untranslated name.)
 
     # Clean up multiple spaces
     result = re.sub(r'\s+', ' ', result)

@@ -161,6 +161,36 @@ class TestDeckBuilder:
     def test_highlight_word_absent_leaves_sentence_alone(self):
         assert highlight_word_in_sentence("学习", "你好世界") == "你好世界"
 
+    def test_word_and_chapter_fields_are_html_escaped(self):
+        """Regression: Sentence was escaped but Word/Chapter weren't, so raw
+        markup from an EPUB heading landed unescaped on the card (and the HTML
+        preview, which does escape, disagreed with the deck)."""
+        card = WordCard(
+            word="a<b>&c",
+            sentence="这是 a<b>&c 的句子。",
+            frequency=2,
+            chapter="第一章 <i>序</i> & 引子",
+        )
+
+        note = create_anki_note(card, {}, get_chinese_model())
+
+        assert note.fields[0] == "a&lt;b&gt;&amp;c"
+        assert note.fields[7] == "第一章 &lt;i&gt;序&lt;/i&gt; &amp; 引子"
+
+    def test_definition_and_translation_are_escaped(self):
+        card = WordCard(
+            word="学习",
+            sentence="我在学习。",
+            frequency=1,
+            definition="study <of> R&D",
+            sentence_translation="I study <R&D>.",
+        )
+
+        note = create_anki_note(card, {}, get_chinese_model())
+
+        assert note.fields[4] == "study &lt;of&gt; R&amp;D"
+        assert note.fields[5] == "I study &lt;R&amp;D&gt;."
+
     def test_missing_definitions_are_collected_not_printed(self, capsys):
         """Regression: one print per card flooded output and garbled tqdm."""
         card = WordCard(word="罗辑", sentence="罗辑说话了。", frequency=1)

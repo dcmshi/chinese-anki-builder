@@ -114,9 +114,8 @@ class ArgosTranslateBackend(TranslationBackend):
             cached, which would silently disable its fallback chain and put
             the Chinese sentence on the card as its own "translation".
         """
-        if not self._initialized:
-            if not self.initialize():
-                raise RuntimeError("Argos Translate not initialized")
+        if not self.try_initialize():
+            raise RuntimeError("Argos Translate not initialized")
 
         # Get translation language objects
         from_lang = next(

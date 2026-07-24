@@ -3,7 +3,7 @@
 import jieba
 from collections import Counter
 from typing import List
-from utils.chinese_utils import is_multi_char_word, contains_chinese
+from utils.chinese_utils import is_han_only, is_multi_char_word, contains_chinese
 
 
 class TokenStats:
@@ -40,12 +40,8 @@ def tokenize_text(text: str) -> List[str]:
     for token in tokens:
         token = token.strip()
 
-        # Skip empty tokens
+        # Skip empty tokens (also covers whitespace-only: token is stripped)
         if not token:
-            continue
-
-        # Skip pure whitespace
-        if token.isspace():
             continue
 
         # Only keep tokens with Chinese characters
@@ -75,12 +71,26 @@ def compute_word_frequency(tokens: List[str]) -> TokenStats:
 
 def filter_multi_char_words(word_freq: Counter) -> Counter:
     """
-    Filter to keep only multi-character words (2+ Chinese characters).
+    Filter to the card-candidate pool: words of 2+ Chinese characters with no
+    other scripts mixed in.
+
+    Mixed tokens like "QQ群" or "iPhone手机" carry Han characters, so a
+    contains-Chinese test keeps them; they then consume top-N slots and get
+    dropped later as "no dictionary definition", shrinking the deck below the
+    requested word count. Requiring Han-only text costs the rare loanword
+    CC-CEDICT does list (卡拉OK) and buys a pool where every candidate can
+    plausibly become a card. Token statistics upstream stay unfiltered.
 
     Args:
         word_freq: Counter of word frequencies
 
     Returns:
-        Counter with only multi-character words
+        Counter with only Han-only multi-character words
     """
-    return Counter({word: count for word, count in word_freq.items() if is_multi_char_word(word)})
+    return Counter(
+        {
+            word: count
+            for word, count in word_freq.items()
+            if is_multi_char_word(word) and is_han_only(word)
+        }
+    )

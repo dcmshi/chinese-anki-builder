@@ -42,6 +42,13 @@ def highlight_word_in_sentence(word: str, sentence: str) -> str:
     Both strings are HTML-escaped first so stray <, >, & from extraction
     can't break the card template.
 
+    Every occurrence is highlighted, including one nested inside a longer word
+    (学习 inside 学习者). That is deliberate: card words always carry 2+ Han
+    characters, so a nested match is the same morpheme rather than a
+    coincidence, and marking it needs no re-tokenization of the sentence --
+    which would also have to agree with jieba's segmentation of hand-edited
+    --from-review rows.
+
     Args:
         word: The target word
         sentence: The example sentence containing it
@@ -159,6 +166,11 @@ def create_anki_note(
     Audio is driven by card.audio_filename (set by the TTS step); the media
     file itself ships via the package's media_files.
 
+    Every text field is HTML-escaped: Anki renders fields as HTML, so a stray
+    "<" or "&" from extraction (chapter titles taken from EPUB headings are
+    raw markup text) would otherwise mangle the card. Audio fields hold
+    generated [sound:...] references and are left alone.
+
     Args:
         card: WordCard object
         cedict: CC-CEDICT dictionary
@@ -194,14 +206,14 @@ def create_anki_note(
         model=model,
         tags=tags,
         fields=[
-            card.word,  # Word
+            html.escape(card.word),  # Word
             highlight_word_in_sentence(card.word, card.sentence),  # Sentence
-            sentence_pinyin,  # SentencePinyin
-            pinyin,  # Pinyin (word)
-            definition,  # Definition
-            sentence_translation,  # SentenceTranslation
+            html.escape(sentence_pinyin),  # SentencePinyin
+            html.escape(pinyin),  # Pinyin (word)
+            html.escape(definition),  # Definition
+            html.escape(sentence_translation),  # SentenceTranslation
             audio,  # Audio
-            card.chapter,  # Chapter
+            html.escape(card.chapter),  # Chapter
             sentence_audio,  # SentenceAudio (appended last: safest for reimports)
         ],
         guid=generate_note_guid(card.word, card.sentence),
@@ -245,13 +257,13 @@ def create_cloze_note(
         tags=[tag] if tag else [],
         fields=[
             cloze_sentence(card.word, card.sentence),  # Text
-            card.word,  # Word
-            pinyin,  # Pinyin
-            definition,  # Definition
-            card.sentence_pinyin or "",  # SentencePinyin
-            card.sentence_translation or "",  # SentenceTranslation
+            html.escape(card.word),  # Word
+            html.escape(pinyin),  # Pinyin
+            html.escape(definition),  # Definition
+            html.escape(card.sentence_pinyin or ""),  # SentencePinyin
+            html.escape(card.sentence_translation or ""),  # SentenceTranslation
             audio,  # Audio
-            card.chapter,  # Chapter
+            html.escape(card.chapter),  # Chapter
             sentence_audio,  # SentenceAudio (appended last: safest for reimports)
         ],
         guid=generate_note_guid(card.word, f"cloze::{card.sentence}"),
@@ -264,7 +276,7 @@ def build_deck(
     cedict: Dict[str, DictEntry],
     output_path: str,
     cloze: bool = False,
-    media_files: List[str] = None,
+    media_files: Optional[List[str]] = None,
 ) -> Path:
     """
     Build and save an Anki deck.

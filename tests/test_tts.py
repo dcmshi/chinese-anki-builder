@@ -43,6 +43,15 @@ class TestAudioFilename:
     def test_different_text_different_name(self):
         assert get_audio_filename("你好") != get_audio_filename("世界")
 
+    def test_voice_is_part_of_the_key(self):
+        """Regression: the cache key ignored lang, so switching voice served
+        the previously cached audio of the other voice."""
+        assert get_audio_filename("你好", "zh-TW") != get_audio_filename("你好", "zh-CN")
+
+    def test_default_voice_keeps_existing_cache_names(self):
+        # Caches built before lang joined the key must stay valid.
+        assert get_audio_filename("你好") == get_audio_filename("你好", "zh-CN")
+
 
 class TestGenerateAudio:
     def test_writes_file_with_fake_gtts(self, tmp_path, monkeypatch):
@@ -89,6 +98,21 @@ class TestGenerateAudio:
         assert generate_audio("你好", target) is False
         assert not target.exists()
         assert list(tmp_path.iterdir()) == []  # temp file cleaned up too
+
+    def test_lang_reaches_gtts(self, tmp_path, monkeypatch):
+        seen = {}
+
+        class RecordingGTTS:
+            def __init__(self, text, lang="zh-CN"):
+                seen["lang"] = lang
+
+            def save(self, path):
+                open(path, "wb").close()
+
+        monkeypatch.setattr(gtts_generator, "_load_gtts", lambda: RecordingGTTS)
+        get_or_create_audio("你好", cache_dir=tmp_path, lang="zh-TW")
+
+        assert seen["lang"] == "zh-TW"
 
 
 class TestGetOrCreateAudio:

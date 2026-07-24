@@ -8,6 +8,7 @@ from process.hsk_filter import (
     filter_by_hsk,
     load_hsk_words,
     parse_hsk_levels,
+    validate_hsk_levels,
 )
 
 
@@ -33,6 +34,25 @@ class TestParseHskLevels:
     def test_invalid_specs_raise(self, spec):
         with pytest.raises(ValueError):
             parse_hsk_levels(spec)
+
+    def test_trailing_comma_is_tolerated(self):
+        # Regression: int('') raised a raw "invalid literal" ValueError.
+        assert parse_hsk_levels("1,3,") == [1, 3]
+
+    @pytest.mark.parametrize("spec", ["1,x", ",,", "1,,2x"])
+    def test_non_numeric_list_gives_the_friendly_message(self, spec):
+        with pytest.raises(ValueError, match="Invalid HSK level spec"):
+            parse_hsk_levels(spec)
+
+
+class TestValidateHskLevels:
+    def test_explicit_list_is_returned_as_is(self):
+        assert validate_hsk_levels([1, 3, 7]) == [1, 3, 7]
+
+    @pytest.mark.parametrize("levels", [[0], [8], ["3"], [None], [True]])
+    def test_invalid_entries_raise(self, levels):
+        with pytest.raises(ValueError, match="Invalid HSK level"):
+            validate_hsk_levels(levels)
 
 
 class TestParseHskWords:
@@ -62,6 +82,15 @@ class TestLoadAndFilter:
         result = filter_by_hsk(["智子", "喜欢", "爸爸", "面壁"], [1], cache_dir=tmp_path)
 
         assert result == ["喜欢", "爸爸"]
+
+    def test_bom_in_a_hand_placed_list_is_stripped(self, tmp_path):
+        """Regression: a list saved by a Windows editor left \\ufeff glued to
+        the first word, so that word never matched."""
+        (tmp_path / "hsk_1.txt").write_text("爱\n爸爸\n", encoding="utf-8-sig")
+
+        words = load_hsk_words([1], cache_dir=tmp_path)
+
+        assert words == {"爱", "爸爸"}
 
     def test_empty_levels_is_a_no_op(self):
         words = ["任何", "词语"]

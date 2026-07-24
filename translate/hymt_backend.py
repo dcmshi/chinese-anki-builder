@@ -135,9 +135,8 @@ class HYMTTranslateBackend(TranslationBackend):
         if not text or not text.strip():
             return ""
 
-        if not self._initialized:
-            if not self.initialize():
-                raise RuntimeError("HY-MT backend not initialized")
+        if not self.try_initialize():
+            raise RuntimeError("HY-MT backend not initialized")
 
         prompt = build_prompt(text, source_lang, target_lang)
 

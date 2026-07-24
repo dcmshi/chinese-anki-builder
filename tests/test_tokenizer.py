@@ -54,3 +54,19 @@ class TestFilterMultiCharWords:
 
         assert set(result) == {"学习", "中文课"}
         assert result["学习"] == 5
+
+    def test_drops_mixed_script_tokens(self):
+        """Regression: tokens with 2+ Han chars but mixed scripts (iPhone手机)
+        passed the candidate filter, consumed top-N slots and were then
+        dropped as "no dictionary definition", shrinking the deck below the
+        requested word count."""
+        freq = Counter({"学习": 5, "iPhone手机": 4, "QQ群": 3, "3维空间": 2})
+
+        result = filter_multi_char_words(freq)
+
+        assert set(result) == {"学习"}
+
+    def test_drops_words_with_embedded_punctuation(self):
+        freq = Counter({"学习": 5, "你好，世界": 3})
+
+        assert set(filter_multi_char_words(freq)) == {"学习"}

@@ -36,11 +36,15 @@ def _document_items_in_reading_order(book) -> list:
     The manifest (`book.get_items()`) carries no ordering guarantee, so
     iterating it can shuffle chapters and mis-tag cards. The spine is the
     authoritative reading order; it also excludes non-content documents
-    such as the navigation page. Falls back to manifest order for EPUBs
-    with an empty/unresolvable spine.
+    such as the navigation page. Spine entries marked `linear="no"` are
+    auxiliary material (notes pages, ads, cover backmatter) that isn't part
+    of the reading flow, so they are skipped. Falls back to manifest order
+    for EPUBs with an empty/unresolvable spine.
     """
     items = []
-    for item_id, _linear in getattr(book, "spine", None) or []:
+    for item_id, linear in getattr(book, "spine", None) or []:
+        if str(linear).lower() in ("no", "false"):
+            continue
         item = book.get_item_with_id(item_id)
         if item is not None and item.get_type() == ebooklib.ITEM_DOCUMENT:
             items.append(item)

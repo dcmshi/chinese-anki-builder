@@ -86,6 +86,19 @@ class TestEpubExtraction:
         assert "第二段内容" in text
         assert "第一段内容第二段内容" not in text
 
+    def test_non_linear_spine_items_are_skipped(self, tmp_path):
+        """`linear="no"` marks auxiliary content (notes, ads, backmatter)
+        that isn't part of the reading flow."""
+        ch1 = _make_chapter("第一章", "ch1.xhtml", "第一章的正文内容在这里。")
+        aux = _make_chapter("附录", "aux.xhtml", "附录里的辅助内容在这里。")
+        aux.is_linear = False
+        path = tmp_path / "book.epub"
+        _write_epub(path, [ch1, aux], spine=[ch1, aux])
+
+        chapters = extract_text_from_epub(str(path))
+
+        assert [c.title for c in chapters] == ["第一章"]
+
     def test_unreadable_file_raises_error_naming_path(self, tmp_path):
         not_an_epub = tmp_path / "broken.epub"
         not_an_epub.write_bytes(b"this is not a zip archive")

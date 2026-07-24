@@ -31,21 +31,27 @@ def is_available() -> bool:
     return _load_gtts() is not None
 
 
-def get_audio_filename(text: str) -> str:
+def get_audio_filename(text: str, lang: str = DEFAULT_LANG) -> str:
     """
     Generate a deterministic filename for audio.
 
+    The voice is part of the key: without it, switching lang (zh-CN ->
+    zh-TW) would serve the previously cached zh-CN audio. The default voice
+    hashes text alone so caches built before this change stay valid.
+
     Args:
         text: Text to generate audio for
+        lang: gTTS language/voice code
 
     Returns:
         Filename (hash-based)
     """
-    hash_digest = hashlib.md5(text.encode("utf-8")).hexdigest()
+    key = text if lang == DEFAULT_LANG else f"{lang}\n{text}"
+    hash_digest = hashlib.md5(key.encode("utf-8")).hexdigest()
     return f"zh_{hash_digest}.mp3"
 
 
-def generate_audio(text: str, output_path: Path, lang: str = "zh-CN") -> bool:
+def generate_audio(text: str, output_path: Path, lang: str = DEFAULT_LANG) -> bool:
     """
     Generate TTS audio for Chinese text.
 
@@ -74,13 +80,16 @@ def generate_audio(text: str, output_path: Path, lang: str = "zh-CN") -> bool:
         return False
 
 
-def get_or_create_audio(text: str, cache_dir: Optional[Path] = None) -> Optional[Path]:
+def get_or_create_audio(
+    text: str, cache_dir: Optional[Path] = None, lang: str = DEFAULT_LANG
+) -> Optional[Path]:
     """
     Return cached audio for the text, generating it if missing.
 
     Args:
         text: Chinese text to speak
         cache_dir: Override cache directory (defaults to data/cache/)
+        lang: gTTS language/voice code (part of the cache key)
 
     Returns:
         Path to the MP3, or None when generation failed/unavailable
@@ -88,8 +97,8 @@ def get_or_create_audio(text: str, cache_dir: Optional[Path] = None) -> Optional
     if cache_dir is None:
         cache_dir = get_cache_dir()
 
-    path = Path(cache_dir) / get_audio_filename(text)
+    path = Path(cache_dir) / get_audio_filename(text, lang)
     if path.exists():
         return path
 
-    return path if generate_audio(text, path) else None
+    return path if generate_audio(text, path, lang=lang) else None

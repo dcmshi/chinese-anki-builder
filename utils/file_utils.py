@@ -11,15 +11,24 @@ from pathlib import Path
 # as literal path segments elsewhere ("/" nests directories).
 _UNSAFE_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
+# Device names Windows reserves: "CON.apkg" etc. cannot be created at all,
+# with or without an extension. Matched case-insensitively against the stem.
+_WINDOWS_RESERVED_NAMES = frozenset(
+    ["CON", "PRN", "AUX", "NUL"]
+    + [f"COM{i}" for i in range(1, 10)]
+    + [f"LPT{i}" for i in range(1, 10)]
+)
+
 
 def sanitize_filename(name: str, fallback: str = "deck") -> str:
     """
     Make a string safe to use as a single filename component.
 
     Replaces path separators and Windows-forbidden characters with
-    underscores and strips trailing dots/spaces (illegal on Windows).
-    The original string (e.g. an Anki deck name) is not restricted --
-    only its on-disk representation is.
+    underscores, strips trailing dots/spaces (illegal on Windows), and
+    suffixes Windows' reserved device names (CON, NUL, COM1, ...) so they
+    become creatable files. The original string (e.g. an Anki deck name) is
+    not restricted -- only its on-disk representation is.
 
     Args:
         name: Proposed filename (without extension)
@@ -29,6 +38,11 @@ def sanitize_filename(name: str, fallback: str = "deck") -> str:
         Safe filename component
     """
     sanitized = _UNSAFE_FILENAME_CHARS.sub("_", name).strip().rstrip(". ")
+    # Windows resolves the device name from the text before the first dot,
+    # so "CON.deck.apkg" is reserved too.
+    head, _, rest = sanitized.partition(".")
+    if head.upper() in _WINDOWS_RESERVED_NAMES:
+        sanitized = f"{head}_" + (f".{rest}" if rest else "")
     return sanitized or fallback
 
 
@@ -39,10 +53,42 @@ def ensure_dir(directory: str | Path) -> Path:
     return path
 
 
+def _user_data_dir() -> Path:
+    """Per-user data directory for an installed (non-source) copy."""
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local")
+    else:
+        base = os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")
+    return Path(base) / "anki-chinese-deck" / "data"
+
+
 def get_data_dir() -> Path:
-    """Get the data directory for caching resources."""
-    data_dir = Path(__file__).parent.parent / "data"
-    return ensure_dir(data_dir)
+    """
+    Get the data directory for caching resources (CC-CEDICT, HSK, models, TTS).
+
+    Resolution order:
+      1. ``ANKI_CHINESE_DATA_DIR`` if set (explicit override).
+      2. ``<repo>/data`` when running from a source checkout (pyproject.toml
+         sits next to the packages) -- the documented `uv run` workflow.
+      3. A per-user data directory otherwise: anchoring to the package
+         location would put ~1GB of models inside site-packages, which may
+         be read-only.
+
+    Falls back to ``./data`` if the chosen directory can't be created.
+    """
+    override = os.environ.get("ANKI_CHINESE_DATA_DIR")
+    if override:
+        return ensure_dir(override)
+
+    repo_root = Path(__file__).parent.parent
+    if (repo_root / "pyproject.toml").exists():
+        return ensure_dir(repo_root / "data")
+
+    try:
+        return ensure_dir(_user_data_dir())
+    except OSError as e:
+        print(f"Warning: could not use {_user_data_dir()} ({e}); falling back to ./data")
+        return ensure_dir(Path("data"))
 
 
 def get_cache_dir() -> Path:

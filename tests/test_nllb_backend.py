@@ -7,6 +7,8 @@ code mapping, and graceful behavior when deps/models are absent.
 
 from pathlib import Path
 
+import pytest
+
 from translate.nllb_backend import NLLBTranslateBackend, NLLB_LANG_CODES
 from translate.manager import TranslationManager
 
@@ -136,6 +138,20 @@ class TestNLLBBatchDecoding:
         backend = NLLBTranslateBackend()
         assert backend.translate_batch([]) == []
         assert backend.is_initialized() is False
+
+    def test_unknown_language_code_raises(self):
+        """Regression: unknown codes fell back to zho_Hans/eng_Latn, so a
+        typo'd code produced a plausible-looking translation of the wrong
+        pair instead of an error (Argos raises here)."""
+        backend = make_initialized_backend()
+
+        with pytest.raises(ValueError, match="source language"):
+            backend.translate("你好", source_lang="zz")
+        with pytest.raises(ValueError, match="target language"):
+            backend.translate("你好", target_lang="klingon")
+        # Nothing reached the model.
+        assert backend.translator.calls == []
+
 
 class TestCorruptedModelRecovery:
     """An interrupted download leaves a model.bin that exists but won't load;

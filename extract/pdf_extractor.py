@@ -56,6 +56,12 @@ def split_text_into_chapters(full_text: str, fallback_title: str = "PDF Book") -
     Returns:
         List of Chapter objects; a single fallback chapter if no headings
         were found
+
+    Known limitation: headings are matched per line, so a heading split
+    across a page boundary (marker at the foot of one page, title at the
+    head of the next) is not detected and its content stays with the
+    previous chapter. Unlike EPUB, PDF carries no structural markup to fix
+    this from; sentences are still extracted, only the chapter tag is off.
     """
     chapters: List[Chapter] = []
     current_title: Optional[str] = None
