@@ -91,19 +91,18 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 
 ### ⏳ Pending Features
 
-- Known words filtering (skip words the learner already knows)
-- Sentence audio (current TTS covers the word only)
+- Context-aware translation (previous sentence as context via HY-MT) —
+  deferred pending eval evidence; the official HY-MT prompt is strictly
+  single-segment, so deviating risks quality. See TODO.md "Deferred".
 
 ### ❌ Future Extensions (Optional)
 
 - Sentence difficulty scoring
-- Skip known words via frequency lists
 - Per-chapter decks
 - Pleco export
 - Better sense disambiguation
 - Traditional Chinese support
 - Online translation APIs (Google, DeepL)
-- Context-aware translation (previous sentence as context via HY-MT)
 
 ## Translation Architecture
 
@@ -307,8 +306,12 @@ uv run pytest tests/ --cov=. --cov-report=term-missing
 
 ### Translation Quality
 
+All backends translate each sentence in isolation — no cross-sentence
+context, so pronouns and referents in literary text can drift.
+
+On the CC-CEDICT fallback specifically (only reached if every neural backend
+is unavailable):
 - Word-by-word translation (not grammatically perfect)
-- No context-aware grammar transformations
 - Particles removed (may lose nuance)
 - Approximation for understanding, not literary translation
 - *Mitigation*: Use a neural MT backend — Argos (default), NLLB-200
@@ -354,7 +357,7 @@ tqdm >= 4.66.0               # Progress bars
 ```toml
 hymt: llama-cpp-python, huggingface_hub  # HY-MT1.5 backend (uv sync --extra hymt)
 nllb: transformers, huggingface_hub      # NLLB-200 CT2 backend (uv sync --extra nllb)
-tts: gtts >= 2.5.0                       # Word audio (uv sync --extra tts)
+tts: gtts >= 2.5.0                       # Word + sentence audio (uv sync --extra tts)
 ```
 
 ### Development Dependencies (dependency group "dev")
@@ -388,79 +391,27 @@ ruff >= 0.1.0                # Linting
 - Processing speed visibility
 - Better UX for large decks (1000+ cards)
 
-## Recent Updates
+## Release History
 
-### 2026-07-09: Audit Fixes & Feature Completion
-
-**Correctness**
-- ✅ Page-number lines actually removed before whitespace collapsing
-- ✅ Neural translation failures raise so the fallback chain engages
-- ✅ CEDICT duplicate entries resolved by preference (common word > proper noun)
-- ✅ Full-hash note GUIDs (collision-safe at large deck sizes)
-- ✅ EPUB chapters in spine (reading) order; nav page no longer a chapter
-- ✅ CEDICT numbered pinyin converted to tone marks on cards
-- ✅ Wheel packaging ships translate/ and main.py
-- ✅ Explicit --config paths must exist (no silent fallback)
-
-**Features**
-- ✅ HSK level filtering (--hsk, HSK 3.0 lists auto-downloaded)
-- ✅ TTS word audio (--tts, gTTS, cached, bundled as .apkg media)
-- ✅ Stats export (--stats / stats_file)
-- ✅ Cloze deletion cards (--cloze)
-- ✅ PDF chapter detection (heading heuristics)
-- ✅ Chapter as a real Anki tag
-- ✅ Target word highlighted inline in the sentence
-
-**Performance & Quality**
-- ✅ Character-bigram sentence index (~10x faster example lookup)
-- ✅ Argos skips the network entirely when its model is cached
-- ✅ 454 tests, 90% coverage
-
-### 2026-02-09: Translation & Quality Improvements
-
-**Phase 1: Initial Setup**
-- ✅ Created project structure
-- ✅ Implemented EPUB/PDF extraction
-- ✅ Added jieba tokenization
-- ✅ CC-CEDICT integration
-- ✅ Basic word selection
-
-**Phase 2: Quality Improvements**
-- ✅ Added definition filtering
-- ✅ Sentence pinyin generation
-- ✅ Word-by-word translation (CEDICT)
-- ✅ Improved translation quality (particle handling)
-- ✅ Unit tests (24 tests)
-- ✅ Windows UTF-8 encoding fix
-- ✅ Test coverage tracking (52%)
-
-**Phase 3: Translation Architecture**
-- ✅ Pluggable backend system
-- ✅ Argos Translate integration (neural MT)
-- ✅ Quality-based backend selection
-- ✅ Automatic fallback
-- ✅ Python 3.13 compatibility testing
-- ✅ Translation documentation (TRANSLATION.md)
-
-**Phase 4: User Experience**
-- ✅ Progress bars (tqdm) for card creation
-- ✅ Progress bars for deck building
-- ✅ Processing speed indicators
-- ✅ Accurate ETA estimates
-
-**Current State**: Fully functional with high-quality neural MT translations (Python 3.13) or reliable word-by-word fallback (any Python version).
+See **CHANGELOG.md** — it is the authoritative per-version record
+(0.1.0 through the current 0.7.0). Audit findings and their resolutions live
+in **TODO.md**.
 
 ## Card Fields Reference
 
 Generated card fields (genanki model):
 - **Word**: Chinese characters (target word)
-- **Sentence**: Chinese characters (example sentence)
+- **Sentence**: Chinese characters (example sentence) — named **Text** on the
+  cloze model, where it holds the `{{c1::…}}` deletion
 - **SentencePinyin**: Full sentence with tone marks
 - **Pinyin**: Word-level pinyin with tone marks
 - **Definition**: English definition from CC-CEDICT
 - **SentenceTranslation**: Word-by-word or neural MT
 - **Audio**: `[sound:...]` reference to bundled gTTS word audio (empty unless `--tts`)
 - **Chapter**: Chapter name from book structure
+- **SentenceAudio**: `[sound:...]` for the example sentence (empty unless
+  `--tts-sentences`). Appended last on both models so existing decks
+  reimport safely — keep it last when adding fields.
 
 ## Example Workflows
 
