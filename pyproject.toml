@@ -56,6 +56,11 @@ target-version = ["py39"]
 line-length = 100
 target-version = "py39"
 
+[tool.pytest.ini_options]
+markers = [
+    "browser: needs a Playwright browser binary (uv run playwright install chromium)",
+]
+
 # Single source of truth for dev tooling (uv installs this group by default).
 # An older [project.optional-dependencies].dev with conflicting pins is gone.
 [dependency-groups]
@@ -64,4 +69,9 @@ dev = [
     "pytest-cov>=7.0.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
+    # Browser round-trip tests for the --review-ui page, whose CSV writer is
+    # JavaScript and unreachable from plain pytest. Dev-only: never a runtime
+    # dependency, never in the wheel. Needs a one-time
+    # `uv run playwright install chromium`; the tests skip cleanly without it.
+    "playwright>=1.44.0",
 ]
