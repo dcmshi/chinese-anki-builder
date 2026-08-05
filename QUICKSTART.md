@@ -42,6 +42,28 @@ uv run python main.py \
 3. **Wait for processing** (downloads CC-CEDICT on first run)
 4. **Import the .apkg file** into Anki (found in `output/` directory)
 
+### ✏️ Checking the Cards Before You Import
+
+Machine translation and dictionary lookups get some cards wrong. To catch
+those before they reach your reviews, add `--review-ui`:
+
+```bash
+uv run python main.py --input book.epub --deck "My Deck" --review-ui cards.html
+```
+
+That stops before building the deck and writes `cards.html`. Open it in any
+browser: every card is rendered the way Anki will show it, and you can fix a
+wrong definition or translation by clicking on it, or drop a bad card with
+the **drop** button. When you're happy, click **Download reviewed CSV** and
+build the real deck from it:
+
+```bash
+uv run python main.py --from-review ~/Downloads/cards.csv --deck "My Deck"
+```
+
+Worth doing on your first deck even if you skip it later — it's the fastest
+way to see whether your settings are producing good cards.
+
 ### 🔧 Configuration
 
 Edit `config.yaml` to change defaults:

@@ -80,7 +80,8 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
 - Automatic output directory creation
 
 **Quality & Testing**:
-- 454 unit tests covering all modules
+- 498 unit tests covering all modules (including a real-browser round trip
+  for the review page's CSV writer)
 - Test coverage: 90% overall (source)
 - Definition validation
 - Windows UTF-8 console encoding
@@ -288,7 +289,7 @@ uv run python main.py \
 
 ### Unit Tests
 
-**Coverage**: 454 tests, 90% overall coverage (source modules)
+**Coverage**: 498 tests, 90% overall coverage (source modules)
 
 **Test Modules**: word selection, CEDICT loading/parsing, deck building,
 text cleaning/sentence splitting, tokenization, pinyin conversion, EPUB/PDF
