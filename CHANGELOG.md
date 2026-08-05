@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+
+- **`--review-ui`: pre-import QC in a browser.** Writes a self-contained
+  editable HTML page that renders every card with the real card styling,
+  then lets the reviewer edit fields inline, drop cards, and filter, before
+  downloading a CSV that `--from-review` consumes unchanged. It stops the
+  pipeline at the same point `--review` does, so dropped cards never cost
+  audio downloads, and the two flags may be combined. Sentence, sentence
+  pinyin, translation, word pinyin and definition are editable; word,
+  frequency and chapter are read-only and round-trip untouched. Editing a
+  sentence flags its pinyin as possibly stale, since pypinyin cannot run in
+  the browser. No server, no external assets, no new runtime dependency.
+
+### Changed
+
+- **Card appearance extracted to `anki/card_render.py`.** `PAGE_CSS`, the
+  cloze face helpers and card field resolution moved out of
+  `anki/preview.py` so the preview and the review page render identically
+  without duplicating styling that has to track `anki/templates.py`.
+  Preview output is unchanged.
+- The audio-skip notice in review mode no longer names a single flag, since
+  `--review` and `--review-ui` share that stop.
+- Repo reformatted with black; the tree had drifted from the pinned config,
+  so the documented `uv run black .` rewrote 25 untouched files.
+
+### Testing
+
+- Playwright added to the `dev` group (never a runtime dependency) for
+  browser round-trip tests of the page's JavaScript CSV writer — the one
+  code path plain pytest cannot reach, and where RFC 4180 quoting decides
+  whether definitions containing commas and quotes survive. Tests are marked
+  `browser` and skip cleanly when Playwright or its browser binary is
+  absent, so a fresh checkout still passes `uv run pytest tests/`.
+- Suite 454 → 498 tests.
+
 ## [0.7.0] - 2026-07-24
 
 Repo-wide bug-fix release: the 2026-07-24 audit (see TODO.md) closed out,

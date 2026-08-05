@@ -56,7 +56,9 @@ chinese-anki-builder/
 │
 ├── anki/                        # Deck generation
 │   ├── templates.py             # Card templates (regular + cloze)
+│   ├── card_render.py           # Shared card appearance (CSS + face resolution)
 │   ├── preview.py               # Static HTML card preview
+│   ├── review_ui.py             # Editable HTML review page (--review-ui)
 │   └── deck_builder.py
 │
 ├── tts/gtts_generator.py        # gTTS word/sentence audio (optional extra)
@@ -88,6 +90,7 @@ uv sync                                   # install (add --extra tts/nllb/hymt a
 uv run python main.py --input book.epub --deck "My Deck"
 uv run pytest tests/ -v
 uv run pytest tests/ --cov=. --cov-report=term-missing
+uv run playwright install chromium   # one-time, enables the `browser` tests
 uv run ruff check .                       # tests/test_repo_health.py enforces this
 uv run black .                            # line-length 100, target py39
 ```
@@ -114,6 +117,13 @@ Full flag list is in README.md. What matters when changing the CLI:
   row per card; blank word/sentence drops the row. `--from-review cards.csv`
   then builds the deck and **every edited field is authoritative**,
   including word pinyin and definition. `--from-review` replaces `--input`.
+- `--review-ui cards.html` is the browser form of the same stop: it writes a
+  self-contained editable page whose Download button emits an identical CSV.
+  Word, frequency and chapter are read-only there; the other five columns
+  are editable. Both flags may be passed together, and either alone ends the
+  run. The page's JS is the only code that writes that CSV, so its RFC 4180
+  quoting is covered by Playwright tests (`-m browser`) rather than pytest
+  alone — keep it that way if you touch `REVIEW_UI_JS`.
 
 Config keys: `top_words`, `min_frequency`, `output_dir`, `enable_tts`,
 `enable_sentence_tts`, `known_words_file`, `cloze`, `hsk_levels`,

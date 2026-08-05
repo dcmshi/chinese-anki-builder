@@ -63,6 +63,13 @@ Detailed feature documentation for the Anki Chinese Deck Builder.
   reviewer edits are authoritative, including word pinyin and definition)
 - Static HTML card preview (--preview): self-contained page rendering every
   card front/back with the real card styling
+- Editable review page (--review-ui): the same rendering plus inline editing
+  of sentence, sentence pinyin, translation, word pinyin and definition, a
+  per-card drop toggle, a filter box, and a "Download reviewed CSV" button
+  whose output `--from-review` consumes unchanged. Word, frequency and
+  chapter are read-only and round-trip untouched; editing a sentence flags
+  its pinyin as possibly stale (pypinyin cannot run in the browser). No
+  server, no external assets, no runtime dependency
 - Known-words filtering (--known-words / known_words_file): excluded before
   top-N selection so decks fill with genuinely new vocabulary
 - Optional sentence audio via gTTS (--tts-sentences), cached and

@@ -37,6 +37,27 @@ uv run pytest tests/ -v -l
 uv run pytest tests/ -k "cedict" -v
 ```
 
+### Browser Tests
+
+The `--review-ui` page writes its CSV in JavaScript, so that path is covered
+by Playwright tests against real headless Chromium — they drive the page,
+click Download, and feed the captured bytes through `load_cards_from_csv`.
+
+One-time setup:
+
+```bash
+uv sync
+uv run playwright install chromium
+```
+
+The tests skip cleanly if either Playwright or the browser binary is
+missing, so a fresh checkout still passes `uv run pytest tests/`.
+
+```bash
+uv run pytest tests/ -m browser        # run only these
+uv run pytest tests/ -m "not browser"  # skip them
+```
+
 ## Test Coverage
 
 ### Install Coverage Tools
@@ -69,12 +90,14 @@ uv run pytest tests/ --cov=process --cov=anki --cov-report=term-missing
 
 ### Coverage Status
 
-**Total:** 454 tests, 90% overall coverage (run the coverage command above
+**Total:** 498 tests, 90% overall coverage (run the coverage command above
 for the current per-module breakdown). Every module has direct tests: word
 selection, CEDICT loading, deck building (regular + cloze), text cleaning,
 tokenization, pinyin conversion, EPUB/PDF extraction, HSK filtering, TTS,
-translation backends and manager fallback, CLI/config plumbing, plus
-repo-health checks (every file compiles, wheel config ships all packages).
+translation backends and manager fallback, card rendering, the review UI
+(markup, payload, and a real-browser CSV round trip), CLI/config plumbing,
+plus repo-health checks (every file compiles, wheel config ships all
+packages).
 
 ### Coverage Goals
 
@@ -91,6 +114,9 @@ tests/
 ├── __init__.py
 ├── test_word_selector.py         # Word selection, sentence index, card creation
 ├── test_cedict_loader.py         # Dictionary parsing, duplicate preference, download errors
+├── test_card_render.py           # Shared card appearance (faces, cloze helpers)
+├── test_review_ui.py             # Editable review page: markup and JSON payload
+├── test_review_ui_browser.py     # Playwright CSV round trip (marked `browser`)
 ├── test_deck_builder.py          # Anki notes, GUIDs, highlighting, chapter tags
 ├── test_cloze_cards.py           # Cloze note type and deck building
 ├── test_text_cleaner.py          # Cleaning, page numbers, sentence splitting
@@ -312,7 +338,7 @@ def test_memory_usage():
 
 ---
 
-**Last Updated:** 2026-07-09
-**Current Test Count:** 454 tests
+**Last Updated:** 2026-08-05
+**Current Test Count:** 498 tests
 **Current Coverage:** 90% overall
 **Target Coverage:** 75%+ (met)

@@ -15,6 +15,8 @@ Automatically generate Anki flashcards for learning Chinese from EPUB and PDF bo
 - 🧩 Optional cloze-deletion cards (`--cloze`)
 - ✅ Pre-import QC: export cards to CSV, edit/delete rows, rebuild (`--review` / `--from-review`)
 - 👀 Static HTML card preview for visual skimming (`--preview`)
+- ✏️ Editable browser review page: edit and drop rendered cards, download the
+  CSV (`--review-ui`)
 - 🚫 Known-words filtering so decks contain only new vocabulary (`--known-words`)
 - 🔉 Optional word and sentence audio (`--tts`, `--tts-sentences`)
 - 🗣️ Add pinyin (word + sentence, tone marks) and English definitions
@@ -81,6 +83,7 @@ uv run python main.py --input <file> [options]
 - `--known-words` - Text file of already-known words to exclude (one per line)
 - `--preview` - Write a static HTML preview of the cards (combines with `--review`)
 - `--review` - Write cards to a CSV for QC and stop before deck build
+- `--review-ui` - Write an editable HTML review page and stop before deck build
 - `--from-review` - Build the deck from a reviewed CSV (replaces `--input`)
 
 The three boolean flags have `--no-` forms so a `true` in `config.yaml` can be
@@ -99,6 +102,22 @@ uv run python main.py --input book.epub --deck "My Deck" --review cards.csv
 # ... edit cards.csv in Excel / your editor ...
 uv run python main.py --from-review cards.csv --deck "My Deck"
 ```
+
+**Same workflow in a browser**: `--review-ui` writes a self-contained page
+that renders every card the way Anki will show it, with inline editing and a
+drop button. Fix a wrong dictionary sense or a clumsy translation while
+looking at the card rather than at a spreadsheet row:
+
+```bash
+uv run python main.py --input book.epub --deck "My Deck" --review-ui cards.html
+# ... open cards.html, edit and drop cards, click "Download reviewed CSV" ...
+uv run python main.py --from-review ~/Downloads/cards.csv --deck "My Deck"
+```
+
+Word, frequency and chapter are read-only in the page and round-trip
+untouched; sentence, sentence pinyin, translation, word pinyin and
+definition are editable. Editing the sentence flags its pinyin as possibly
+stale, since pinyin cannot be regenerated in the browser.
 
 ## Configuration
 
