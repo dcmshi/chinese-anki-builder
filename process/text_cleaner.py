@@ -4,7 +4,6 @@ import re
 
 from utils.chinese_utils import normalize_whitespace, is_chinese_char
 
-
 # Sentence-ending punctuation (Chinese full stop / exclamation / question + ASCII !?).
 # ASCII "." is intentionally excluded so decimals like "1.5万" aren't split.
 _SENT_ENDERS = "。！？!?"

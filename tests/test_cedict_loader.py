@@ -75,19 +75,14 @@ class TestCEDICTLoader:
             traditional="你好",
             simplified="你好",
             pinyin="ni3 hao3",
-            definitions=["hello", "hi", "how are you"]
+            definitions=["hello", "hi", "how are you"],
         )
 
         assert entry.get_first_definition() == "hello"
 
     def test_dict_entry_get_first_definition_empty(self):
         """Test getting first definition when list is empty."""
-        entry = DictEntry(
-            traditional="你好",
-            simplified="你好",
-            pinyin="ni3 hao3",
-            definitions=[]
-        )
+        entry = DictEntry(traditional="你好", simplified="你好", pinyin="ni3 hao3", definitions=[])
 
         assert entry.get_first_definition() == ""
 
@@ -141,9 +136,7 @@ class TestCEDICTLoader:
                 pass
 
         monkeypatch.setattr(cedict_loader, "get_data_dir", lambda: tmp_path)
-        monkeypatch.setattr(
-            cedict_loader.requests, "get", lambda *a, **kw: FakeResponse()
-        )
+        monkeypatch.setattr(cedict_loader.requests, "get", lambda *a, **kw: FakeResponse())
 
         with pytest.raises(RuntimeError, match="corrupted"):
             download_cedict(force=True)
@@ -185,10 +178,7 @@ class TestCEDICTLoader:
     def test_dict_entry_repr(self):
         """Test DictEntry string representation."""
         entry = DictEntry(
-            traditional="你好",
-            simplified="你好",
-            pinyin="ni3 hao3",
-            definitions=["hello"]
+            traditional="你好", simplified="你好", pinyin="ni3 hao3", definitions=["hello"]
         )
 
         repr_str = repr(entry)

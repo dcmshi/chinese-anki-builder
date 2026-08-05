@@ -21,7 +21,6 @@ from typing import List, Optional, Dict, Any
 from translate.base import TranslationBackend
 from utils.file_utils import get_data_dir
 
-
 # Official GGUF builds published by Tencent. The filename is a glob matched
 # against the repo contents (llama-cpp-python resolves it), so a quant level
 # is picked without hardcoding exact file names.
@@ -51,7 +50,9 @@ def build_prompt(text: str, source_lang: str, target_lang: str) -> str:
 
     if src.startswith("zh") or tgt.startswith("zh"):
         return f"把下面的文本翻译成{zh_name}，不要额外解释。\n\n{text}"
-    return f"Translate the following segment into {en_name}, without additional explanation.\n\n{text}"
+    return (
+        f"Translate the following segment into {en_name}, without additional explanation.\n\n{text}"
+    )
 
 
 class HYMTTranslateBackend(TranslationBackend):

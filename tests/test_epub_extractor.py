@@ -59,8 +59,7 @@ class TestEpubExtraction:
         that highlighting and cloze deletion depend on."""
         ch = epub.EpubHtml(title="第一章", file_name="ch1.xhtml", lang="zh")
         ch.content = (
-            "<html><body><h1>第一章</h1>"
-            "<p>他<b>说</b>了一<span>句</span>话。</p></body></html>"
+            "<html><body><h1>第一章</h1>" "<p>他<b>说</b>了一<span>句</span>话。</p></body></html>"
         )
         path = tmp_path / "book.epub"
         _write_epub(path, [ch], spine=[ch])
@@ -74,9 +73,7 @@ class TestEpubExtraction:
         """Removing the separator must not run neighbouring blocks together:
         two unpunctuated paragraphs would merge into one "sentence"."""
         ch = epub.EpubHtml(title="第一章", file_name="ch1.xhtml", lang="zh")
-        ch.content = (
-            "<html><body><h1>第一章</h1><p>第一段内容</p><p>第二段内容</p></body></html>"
-        )
+        ch.content = "<html><body><h1>第一章</h1><p>第一段内容</p><p>第二段内容</p></body></html>"
         path = tmp_path / "book.epub"
         _write_epub(path, [ch], spine=[ch])
 

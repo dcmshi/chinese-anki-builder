@@ -213,9 +213,7 @@ class TestBuildFromReview:
         assert "--input is required" in capsys.readouterr().err
 
     def test_cli_rejects_input_with_from_review(self, tmp_path, monkeypatch, capsys):
-        monkeypatch.setattr(
-            sys, "argv", ["main.py", "--input", "x.epub", "--from-review", "y.csv"]
-        )
+        monkeypatch.setattr(sys, "argv", ["main.py", "--input", "x.epub", "--from-review", "y.csv"])
         with pytest.raises(SystemExit):
             main_module.main()
         assert "do not also pass --input" in capsys.readouterr().err

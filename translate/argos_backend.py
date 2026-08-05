@@ -39,7 +39,11 @@ class ArgosTranslateBackend(TranslationBackend):
             # run (and offline runs with a cached model) depend on the network.
             installed_packages = argostranslate.package.get_installed_packages()
             installed_zh_en = next(
-                (pkg for pkg in installed_packages if pkg.from_code == "zh" and pkg.to_code == "en"),
+                (
+                    pkg
+                    for pkg in installed_packages
+                    if pkg.from_code == "zh" and pkg.to_code == "en"
+                ),
                 None,
             )
 
@@ -71,9 +75,7 @@ class ArgosTranslateBackend(TranslationBackend):
 
                 print(f"Downloading Argos Translate model: {zh_en_package.package_version}")
                 print("This may take a few minutes on first run...")
-                argostranslate.package.install_from_path(
-                    zh_en_package.download()
-                )
+                argostranslate.package.install_from_path(zh_en_package.download())
                 print("Model downloaded and installed successfully!")
 
             self.installed_languages = argostranslate.translate.get_installed_languages()
@@ -92,6 +94,7 @@ class ArgosTranslateBackend(TranslationBackend):
         """Check if Argos Translate is available."""
         try:
             import argostranslate  # noqa: F401 -- availability probe only
+
             return True
         except ImportError:
             return False
@@ -119,12 +122,10 @@ class ArgosTranslateBackend(TranslationBackend):
 
         # Get translation language objects
         from_lang = next(
-            (lang for lang in self.installed_languages if lang.code == source_lang),
-            None
+            (lang for lang in self.installed_languages if lang.code == source_lang), None
         )
         to_lang = next(
-            (lang for lang in self.installed_languages if lang.code == target_lang),
-            None
+            (lang for lang in self.installed_languages if lang.code == target_lang), None
         )
 
         if not from_lang or not to_lang:

@@ -2,7 +2,6 @@
 
 import re
 
-
 # Han character ranges. The CJK Unified Ideographs block (4E00-9FFF) covers
 # virtually all modern text, but Extension A and the compatibility ideographs
 # show up in older/classical material and in names; without them those

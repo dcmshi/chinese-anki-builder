@@ -12,9 +12,26 @@ from typing import List
 # must be joined with nothing at all -- but block boundaries still need a
 # separator or two paragraphs would run together into one "sentence".
 _BLOCK_TAGS = [
-    "p", "div", "br", "li", "tr", "td", "th", "blockquote", "pre",
-    "section", "article", "header", "footer", "figcaption",
-    "h1", "h2", "h3", "h4", "h5", "h6",
+    "p",
+    "div",
+    "br",
+    "li",
+    "tr",
+    "td",
+    "th",
+    "blockquote",
+    "pre",
+    "section",
+    "article",
+    "header",
+    "footer",
+    "figcaption",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
 ]
 
 

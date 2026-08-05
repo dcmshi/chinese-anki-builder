@@ -62,9 +62,7 @@ def highlight_word_in_sentence(word: str, sentence: str) -> str:
     if not escaped_word:
         return escaped_sentence
 
-    return escaped_sentence.replace(
-        escaped_word, f'<span class="target">{escaped_word}</span>'
-    )
+    return escaped_sentence.replace(escaped_word, f'<span class="target">{escaped_word}</span>')
 
 
 def cloze_sentence(word: str, sentence: str) -> str:
@@ -319,7 +317,9 @@ def build_deck(
     if missing_definitions:
         sample = ", ".join(missing_definitions[:5])
         more = f" (+{len(missing_definitions) - 5} more)" if len(missing_definitions) > 5 else ""
-        print(f"Warning: no definition found for {len(missing_definitions)} word(s): {sample}{more}")
+        print(
+            f"Warning: no definition found for {len(missing_definitions)} word(s): {sample}{more}"
+        )
     if invalid_cloze:
         sample = ", ".join(invalid_cloze[:5])
         more = f" (+{len(invalid_cloze) - 5} more)" if len(invalid_cloze) > 5 else ""

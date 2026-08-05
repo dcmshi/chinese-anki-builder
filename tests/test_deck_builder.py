@@ -57,16 +57,9 @@ class TestDeckBuilder:
 
     def test_create_anki_note_with_definition(self):
         """Test creating an Anki note with a valid definition."""
-        card = WordCard(
-            word="你好",
-            sentence="你好世界",
-            frequency=10,
-            chapter="Chapter 1"
-        )
+        card = WordCard(word="你好", sentence="你好世界", frequency=10, chapter="Chapter 1")
 
-        cedict = {
-            "你好": DictEntry("你好", "你好", "nǐ hǎo", ["hello", "hi"])
-        }
+        cedict = {"你好": DictEntry("你好", "你好", "nǐ hǎo", ["hello", "hi"])}
 
         model = get_chinese_model()
         note = create_anki_note(card, cedict, model)
@@ -84,7 +77,7 @@ class TestDeckBuilder:
             word="罗辑",  # Character name, not in dictionary
             sentence="罗辑说话了",
             frequency=5,
-            chapter="Chapter 2"
+            chapter="Chapter 2",
         )
 
         cedict = {}  # Empty dictionary
@@ -98,11 +91,7 @@ class TestDeckBuilder:
 
     def test_create_anki_note_pinyin_fallback(self):
         """Test that pinyin uses pypinyin when not in CEDICT."""
-        card = WordCard(
-            word="测试",
-            sentence="这是测试",
-            frequency=3
-        )
+        card = WordCard(word="测试", sentence="这是测试", frequency=3)
 
         cedict = {}  # Not in dictionary
 

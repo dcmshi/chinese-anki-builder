@@ -7,7 +7,6 @@ from pypdf.errors import PdfReadError
 from typing import List, Optional
 from extract.epub_extractor import Chapter
 
-
 # Chapter markers like 第一章 / 第12回 / 第３卷, optionally followed by a title.
 _CHAPTER_MARKER_RE = re.compile(
     r"^\s*(第[一二三四五六七八九十百千万零两0-9０-９]{1,6}[章节回卷部篇])(.*)$"

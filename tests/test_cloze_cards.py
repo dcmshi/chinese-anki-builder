@@ -15,7 +15,6 @@ from anki.templates import get_chinese_cloze_model, get_chinese_model
 from process.cedict_loader import DictEntry
 from process.word_selector import WordCard
 
-
 CEDICT = {"学习": DictEntry("學習", "学习", "xue2 xi2", ["to study", "to learn"])}
 
 

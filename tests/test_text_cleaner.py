@@ -5,9 +5,7 @@ orphaned leading punctuation, balanced-quote preservation, etc.) that would
 have caught the dialogue-quote-orphaning bug.
 """
 
-
 from process.text_cleaner import clean_text, split_sentences
-
 
 # Characters that should never legitimately start a sentence.
 _STRAY_LEADING = "，,；;：:、。”’』」）》】)]"

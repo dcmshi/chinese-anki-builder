@@ -65,9 +65,7 @@ class TestNormalizeHskLevels:
     def test_bad_config_value_prints_error_not_traceback(self, monkeypatch, capsys, tmp_path):
         cfg = tmp_path / "config.yaml"
         cfg.write_text("hsk_levels: 99\n", encoding="utf-8")
-        monkeypatch.setattr(
-            "sys.argv", ["main.py", "--input", "x.epub", "--config", str(cfg)]
-        )
+        monkeypatch.setattr("sys.argv", ["main.py", "--input", "x.epub", "--config", str(cfg)])
 
         with pytest.raises(SystemExit) as exc_info:
             main()
@@ -102,9 +100,7 @@ class TestNegatableBooleanFlags:
         assert params["enable_sentence_tts"] is False
 
     def test_flag_still_enables(self, monkeypatch):
-        params = self._resolved_params(
-            monkeypatch, ["--input", "x.epub", "--cloze", "--tts"], {}
-        )
+        params = self._resolved_params(monkeypatch, ["--input", "x.epub", "--cloze", "--tts"], {})
 
         assert params["cloze"] is True
         assert params["enable_tts"] is True
@@ -127,9 +123,7 @@ class TestCliErrorHandling:
         return capsys.readouterr().err
 
     def test_missing_config_prints_error_not_traceback(self, monkeypatch, capsys):
-        err = self._run_cli(
-            monkeypatch, capsys, ["--input", "x.epub", "--config", "nope.yaml"]
-        )
+        err = self._run_cli(monkeypatch, capsys, ["--input", "x.epub", "--config", "nope.yaml"])
         assert "ERROR: Config file not found" in err
         assert "Traceback" not in err
 

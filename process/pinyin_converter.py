@@ -6,7 +6,6 @@ from pypinyin import pinyin, Style
 from typing import Dict
 from process.cedict_loader import DictEntry
 
-
 # Tone-marked vowels indexed by tone number - 1 (tones 1-4).
 _TONE_MARKS = {
     "a": "āáǎà",

@@ -56,12 +56,12 @@ def translate_sentence(sentence: str, cedict: Dict[str, DictEntry]) -> str:
 
             # Clean up the definition
             # Remove grammatical notes in parentheses/brackets
-            definition = definition.split('(')[0].strip()
-            definition = definition.split('[')[0].strip()
+            definition = definition.split("(")[0].strip()
+            definition = definition.split("[")[0].strip()
 
             # Take first meaning if multiple are separated by comma or semicolon
-            definition = definition.split(',')[0].strip()
-            definition = definition.split(';')[0].strip()
+            definition = definition.split(",")[0].strip()
+            definition = definition.split(";")[0].strip()
 
             # Remove "to " prefix for verbs to make translation more natural
             if definition.startswith("to "):
@@ -104,7 +104,7 @@ def improve_translation(translation: str) -> str:
 
     # Fix common patterns
     # Pattern: "one [classifier] [noun]" -> "a [noun]"
-    result = re.sub(r'\bone (piece|item|one) ', r'a ', result)
+    result = re.sub(r"\bone (piece|item|one) ", r"a ", result)
 
     # (A particle-stripping re.sub used to sit here. It ran on the already
     # translated English string, where translate_sentence has dropped 的/了/
@@ -112,7 +112,7 @@ def improve_translation(translation: str) -> str:
     # character out of an untranslated name.)
 
     # Clean up multiple spaces
-    result = re.sub(r'\s+', ' ', result)
+    result = re.sub(r"\s+", " ", result)
 
     # Capitalize first letter
     result = result.strip()
@@ -120,7 +120,7 @@ def improve_translation(translation: str) -> str:
         result = result[0].upper() + result[1:]
 
     # Ensure proper punctuation at end
-    if result and result[-1] not in '.!?。！？':
+    if result and result[-1] not in ".!?。！？":
         result += "."
 
     return result

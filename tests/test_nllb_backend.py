@@ -112,7 +112,7 @@ class TestNLLBBatchDecoding:
         results = backend.translate_batch(["你好", "再见"])
 
         assert results == ["Hello", "Hello"]
-        (batch, kwargs), = backend.translator.calls
+        ((batch, kwargs),) = backend.translator.calls
         assert len(batch) == 2
         assert kwargs["beam_size"] == 4
         assert kwargs["no_repeat_ngram_size"] == 3
@@ -126,7 +126,7 @@ class TestNLLBBatchDecoding:
         results = backend.translate_batch(["", "你好", "   "])
 
         assert results == ["", "Hello", ""]
-        (batch, _), = backend.translator.calls
+        ((batch, _),) = backend.translator.calls
         assert len(batch) == 1  # only the real text hit the model
 
     def test_single_translate_delegates_to_batch(self):

@@ -413,8 +413,9 @@ class TestPersistentCache:
         before = cache_file.read_text(encoding="utf-8")
 
         monkeypatch.setattr(os, "replace", lambda *a, **kw: (_ for _ in ()).throw(OSError("boom")))
-        manager_b = TranslationManager(backends=[StubBackend("primary", 90, result="T2")],
-                                       cache_path=cache_file)
+        manager_b = TranslationManager(
+            backends=[StubBackend("primary", 90, result="T2")], cache_path=cache_file
+        )
         manager_b.initialize()
         manager_b.translate("第二句。")
         manager_b.save_cache()  # OSError is caught and warned about

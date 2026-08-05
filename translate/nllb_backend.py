@@ -20,7 +20,6 @@ from typing import List, Optional, Dict, Any
 from translate.base import TranslationBackend
 from utils.file_utils import get_data_dir
 
-
 # NLLB uses FLORES-200 language codes (e.g. "zho_Hans", "eng_Latn") rather than
 # the short ISO codes the rest of the pipeline passes around.
 NLLB_LANG_CODES = {

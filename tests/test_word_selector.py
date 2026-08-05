@@ -211,12 +211,7 @@ class TestWordSelector:
 
     def test_word_card_structure(self):
         """Test WordCard has correct structure."""
-        card = WordCard(
-            word="你好",
-            sentence="你好世界",
-            frequency=10,
-            chapter="Chapter 1"
-        )
+        card = WordCard(word="你好", sentence="你好世界", frequency=10, chapter="Chapter 1")
 
         assert card.word == "你好"
         assert card.sentence == "你好世界"

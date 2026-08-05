@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from utils.file_utils import atomic_write_bytes, get_data_dir
 
-
 CEDICT_URL = "https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz"
 
 

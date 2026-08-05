@@ -375,9 +375,9 @@ def process_pipeline(
             "skipped_no_definition": card_stats.get("skipped_no_definition", 0),
             "skipped_no_sentence": card_stats.get("skipped_no_sentence", 0),
             "known_words_excluded": known_in_book,
-            "token_coverage": round(covered_tokens / stats.total_words, 4)
-            if stats.total_words
-            else 0.0,
+            "token_coverage": (
+                round(covered_tokens / stats.total_words, 4) if stats.total_words else 0.0
+            ),
             "translation_backend": translation_backend_name,
             "cards": [
                 {"word": card.word, "frequency": card.frequency, "chapter": card.chapter}
@@ -427,9 +427,7 @@ def process_pipeline(
     # but illegal or directory-nesting as paths).
     print("\nBuilding Anki deck...")
     output_path = Path(output_dir) / f"{sanitize_filename(deck_name)}.apkg"
-    build_deck(
-        deck_name, cards, cedict, str(output_path), cloze=cloze, media_files=media_files
-    )
+    build_deck(deck_name, cards, cedict, str(output_path), cloze=cloze, media_files=media_files)
 
     # Step 10: Export stats if requested
     if stats_file:
@@ -493,9 +491,7 @@ def build_from_review(
 
     print("\nBuilding Anki deck...")
     output_path = Path(output_dir) / f"{sanitize_filename(deck_name)}.apkg"
-    build_deck(
-        deck_name, cards, cedict, str(output_path), cloze=cloze, media_files=media_files
-    )
+    build_deck(deck_name, cards, cedict, str(output_path), cloze=cloze, media_files=media_files)
 
     print("\n" + "=" * 60)
     print("✓ Deck generation complete!")
@@ -639,9 +635,7 @@ def main():
                 output_dir=resolve(args.output, ["output_dir"], "output"),
                 cloze=resolve(args.cloze, ["cloze"], False),
                 enable_tts=resolve(args.tts, ["enable_tts"], False),
-                enable_sentence_tts=resolve(
-                    args.tts_sentences, ["enable_sentence_tts"], False
-                ),
+                enable_sentence_tts=resolve(args.tts_sentences, ["enable_sentence_tts"], False),
                 preview_file=args.preview,
             )
             return
@@ -667,9 +661,7 @@ def main():
             "review_file": args.review,
             "preview_file": args.preview,
             "known_words_file": resolve(args.known_words, ["known_words_file"], None),
-            "enable_sentence_tts": resolve(
-                args.tts_sentences, ["enable_sentence_tts"], False
-            ),
+            "enable_sentence_tts": resolve(args.tts_sentences, ["enable_sentence_tts"], False),
         }
 
         process_pipeline(**params)

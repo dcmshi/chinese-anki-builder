@@ -339,9 +339,7 @@ class TranslationManager:
                 for text, result in zip(unique_texts, batch_out):
                     if result and result.strip():
                         cache_key = (text, source_lang, target_lang)
-                        self._store_success(
-                            self.active_backend, cache_key, pair, text, result
-                        )
+                        self._store_success(self.active_backend, cache_key, pair, text, result)
                         for i in pending[text]:
                             results[i] = result
 
