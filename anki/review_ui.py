@@ -72,8 +72,147 @@ UI_CSS = """
 .card.dropped .drop-toggle { color: #ff6b6b; border-color: #ff6b6b; }
 """
 
-# Filled in Task 4.
-REVIEW_UI_JS = ""
+# Vanilla ES5-compatible JS, inlined so the page stays self-contained.
+# The embedded JSON is the authoritative model: edits mutate it, the
+# rendered card is a view of it, and the CSV is serialized from it.
+REVIEW_UI_JS = r"""
+(function () {
+  var MODEL = JSON.parse(document.getElementById("cards-data").textContent);
+  var COLUMNS = JSON.parse(document.getElementById("columns-data").textContent);
+  var CLOZE = document.body.dataset.cloze === "true";
+  var CSV_NAME = document.body.dataset.csvName;
+  var dirty = false;
+
+  function cardEl(i) {
+    return document.querySelector('[data-card="' + i + '"]');
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  // Mirrors highlight_word_in_sentence / cloze_front in Python: replace every
+  // occurrence, since card words are 2+ Han characters and a nested match is
+  // the same morpheme rather than a coincidence.
+  function markedSentence(row, marker) {
+    var sentence = escapeHtml(row.sentence);
+    var word = escapeHtml(row.word);
+    if (!word) return sentence;
+    return sentence.split(word).join(marker(word));
+  }
+
+  function frontHtml(row) {
+    return markedSentence(row, function (word) {
+      return CLOZE
+        ? '<span class="cloze">[...]</span>'
+        : '<span class="target">' + word + "</span>";
+    });
+  }
+
+  // Cloze backs reveal the word; regular backs look like the front.
+  function backHtml(row) {
+    return markedSentence(row, function (word) {
+      return CLOZE
+        ? '<span class="cloze">' + word + "</span>"
+        : '<span class="target">' + word + "</span>";
+    });
+  }
+
+  function renderCard(i) {
+    var row = MODEL[i];
+    var el = cardEl(i);
+    el.querySelector('[data-display="front"]').innerHTML = frontHtml(row);
+    el.querySelector('[data-display="back"]').innerHTML = backHtml(row);
+    el.querySelector('[data-display="sentence-pinyin"]').textContent = row.sentence_pinyin;
+    el.querySelector('[data-display="pinyin"]').textContent = row.word_pinyin;
+    el.querySelector('[data-display="definition"]').textContent = row.definition;
+    el.querySelector('[data-display="translation"]').textContent = row.sentence_translation;
+    el.classList.toggle("stale", !!row._sentenceEdited && !row._pinyinEdited);
+  }
+
+  function updateCounter() {
+    var dropped = MODEL.filter(function (r) { return r._dropped; }).length;
+    document.getElementById("counter").textContent =
+      MODEL.length + " cards · " + dropped + " dropped";
+  }
+
+  // RFC 4180: quote when the field holds a comma, quote, CR or LF; double
+  // any internal quote. CC-CEDICT definitions routinely contain commas and
+  // quotes, so this is the difference between a clean deck and a corrupt one.
+  function csvCell(value) {
+    var s = value === null || value === undefined ? "" : String(value);
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function toCSV() {
+    var lines = [COLUMNS.join(",")];
+    MODEL.forEach(function (row) {
+      if (row._dropped) return;
+      lines.push(COLUMNS.map(function (c) { return csvCell(row[c]); }).join(","));
+    });
+    // Leading BOM matches export_cards_to_csv's utf-8-sig; CRLF matches
+    // Python csv's default lineterminator. fromCharCode rather than a
+    // literal BOM so the character stays visible in source.
+    var bom = String.fromCharCode(0xFEFF);
+    return bom + lines.join("\r\n") + "\r\n";
+  }
+
+  document.querySelectorAll("[data-field]").forEach(function (el) {
+    el.addEventListener("input", function () {
+      var i = Number(el.dataset.cardIndex);
+      var field = el.dataset.field;
+      MODEL[i][field] = el.textContent;
+      if (field === "sentence") MODEL[i]._sentenceEdited = true;
+      if (field === "sentence_pinyin") MODEL[i]._pinyinEdited = true;
+      dirty = true;
+      renderCard(i);
+    });
+  });
+
+  document.querySelectorAll("[data-drop]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var i = Number(button.dataset.drop);
+      MODEL[i]._dropped = !MODEL[i]._dropped;
+      cardEl(i).classList.toggle("dropped", !!MODEL[i]._dropped);
+      button.textContent = MODEL[i]._dropped ? "undo" : "drop";
+      dirty = true;
+      updateCounter();
+    });
+  });
+
+  document.getElementById("filter").addEventListener("input", function (event) {
+    var needle = event.target.value.trim().toLowerCase();
+    MODEL.forEach(function (row, i) {
+      var haystack = (row.word + " " + row.definition + " " + row.sentence).toLowerCase();
+      cardEl(i).classList.toggle("hidden", needle !== "" && haystack.indexOf(needle) === -1);
+    });
+  });
+
+  document.getElementById("download").addEventListener("click", function () {
+    var blob = new Blob([toCSV()], { type: "text/csv;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = CSV_NAME;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    dirty = false;
+  });
+
+  window.addEventListener("beforeunload", function (event) {
+    if (!dirty) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+
+  updateCounter();
+})();
+"""
 
 
 def _card_row(card: WordCard, cedict: Optional[Dict[str, DictEntry]]) -> dict:
