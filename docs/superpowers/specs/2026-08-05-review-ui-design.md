@@ -26,7 +26,9 @@ exports like `--review`.
 
 ## Non-Goals
 
-- No server, no network, no new runtime dependency (offline-first)
+- No server, no network, no new runtime dependency (offline-first). Test
+  tooling is exempt: Playwright is a `dev`-group dependency and never
+  reaches the wheel or an end user.
 - No build step or JS framework
 - Not a replacement for the CSV: hand-editing the downloaded CSV remains
   the escape hatch for anything the UI does not expose
@@ -192,25 +194,59 @@ Additions to `tests/test_main.py`:
 `tests/test_preview.py` runs unchanged, verifying the `card_render`
 extraction preserved preview output.
 
-### Known coverage gap
+### Browser round-trip tests
 
-The JS CSV writer cannot be exercised from pytest. Two mitigations were
-considered and rejected: adding Playwright (a headless-browser dependency
-contradicts the project's minimal-dependency ethos) and asserting on JS
-source strings (verifies nothing real).
+The JS CSV writer is the highest-risk code in this feature and is not
+reachable from plain pytest, so `tests/test_review_ui_browser.py` drives a
+real headless Chromium via Playwright. The test that matters:
 
-Accepted mitigation:
+1. Export a fixture deck with `export_cards_to_review_ui`
+2. Load the page from `file://`
+3. Edit a definition, edit a sentence, drop a card
+4. Click Download and capture the file via `page.expect_download()`
+5. Feed the captured bytes straight into `load_cards_from_csv`
+6. Assert the resulting `WordCard` list matches expectations exactly
 
-- Keep the JS CSV function to roughly 15 lines, with the escaping rules
-  stated as a comment
-- Add a Python test pinning the expected CSV bytes for a fixture deck via
-  `export_cards_to_csv`, so the target format is locked
-- Verify the round trip manually once during implementation: export a real
-  deck with `--review-ui`, edit and drop a few cards including ones whose
-  definitions contain commas and quotes, download, and confirm
-  `--from-review` builds the expected deck
+This tests the actual contract — the same function the real
+`--from-review` build calls — rather than approximating it.
 
-This is documented as a manual check, not claimed as automated coverage.
+Cases to cover:
+
+- Definitions containing ASCII commas and double quotes survive the round
+  trip byte-exact (the corruption mode that matters most, since CC-CEDICT
+  definitions routinely contain both)
+- Dropped cards are absent from the loaded list
+- Edited fields win over original values
+- Untouched read-only fields (`word`, `frequency`, `chapter`) are unchanged
+- A card whose text contains `</script>` does not break the page and round
+  trips intact
+- The downloaded bytes start with the U+FEFF byte-order mark
+
+### Dependency and skip behavior
+
+`playwright` joins the `dev` dependency group, next to pytest, ruff and
+black. It is not a runtime dependency: it never enters the wheel and no end
+user installs it, so the offline-first guarantee for the tool itself is
+unaffected.
+
+Because the browser binary is a separate ~150 MB `playwright install
+chromium` step, these tests must not hard-fail for a contributor who has not
+run it. They are guarded by `pytest.importorskip("playwright")` and marked
+`@pytest.mark.browser`, registered in `pyproject.toml`, so:
+
+- `uv run pytest tests/` still passes on a fresh checkout, skipping them
+- `uv run pytest tests/ -m browser` runs them deliberately
+- `uv run pytest tests/ -m "not browser"` deselects them in constrained
+  environments
+
+TESTING.md gains a short section on the one-time `playwright install
+chromium` setup.
+
+### Remaining manual check
+
+One visual confirmation during implementation, which no automated test
+replaces: open a real generated page and confirm the cards render as they do
+in `--preview` and the grid is usable at a few thousand cards.
 
 ## Documentation to Update
 
@@ -220,10 +256,13 @@ This is documented as a manual check, not claimed as automated coverage.
   Notes", and `anki/review_ui.py` plus `anki/card_render.py` in the project
   structure tree
 - `CHANGELOG.md` — new entry
+- `TESTING.md` — the one-time `playwright install chromium` step and the
+  `browser` marker
 
-No `pyproject.toml` change: `anki/` is already in the wheel's
-`only-include`, so `test_wheel_config_ships_all_first_party_code` stays
-green.
+`pyproject.toml` changes are limited to the `dev` dependency group
+(`playwright`) and registering the `browser` marker. The wheel is untouched:
+`anki/` is already in `only-include`, so
+`test_wheel_config_ships_all_first_party_code` stays green.
 
 ## Out of Scope
 
