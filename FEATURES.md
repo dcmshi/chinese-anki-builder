@@ -375,7 +375,13 @@ pytest >= 8.4.2              # Testing
 pytest-cov >= 7.0.0          # Coverage
 black >= 23.0.0              # Formatting
 ruff >= 0.1.0                # Linting
+playwright >= 1.44.0         # Browser tests for the --review-ui CSV writer
 ```
+
+Playwright needs a one-time `uv run playwright install chromium`. Tests that
+use it are marked `browser` and skip cleanly without it, so a fresh checkout
+still passes `uv run pytest tests/`. It is dev-only and never ships in the
+wheel.
 
 ## User Experience Improvements
 
@@ -458,6 +464,28 @@ uv run python main.py \
   --top-words 5000 \
   --min-freq 2
 ```
+
+### Reviewed in the Browser (QC before import)
+```bash
+# 1. Build the cards and stop, writing an editable page
+uv run python main.py \
+  --input book.epub \
+  --deck "Novel Name" \
+  --top-words 3000 \
+  --min-freq 5 \
+  --review-ui cards.html
+
+# 2. Open cards.html, fix wrong senses/translations, drop junk cards,
+#    click "Download reviewed CSV"
+
+# 3. Build the real deck from what you approved
+uv run python main.py \
+  --from-review ~/Downloads/cards.csv \
+  --deck "Novel Name"
+```
+
+Audio is deliberately not generated in step 1 — dropped cards would cost
+downloads for nothing. Pass `--tts` to the step 3 build instead.
 
 ## Translation Backend Selection
 
