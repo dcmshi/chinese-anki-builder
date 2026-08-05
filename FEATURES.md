@@ -408,7 +408,7 @@ wheel.
 ## Release History
 
 See **CHANGELOG.md** — it is the authoritative per-version record
-(0.1.0 through the current 0.7.0). Audit findings and their resolutions live
+(0.1.0 through the current 0.8.0). Audit findings and their resolutions live
 in **TODO.md**.
 
 ## Card Fields Reference

@@ -17,7 +17,7 @@ Keep these authoritative and don't restate them here:
 | `TRANSLATION.md` | Backend architecture, model config/env overrides, troubleshooting |
 | `TESTING.md` | Test layout, coverage workflow, fixture/mocking conventions |
 | `TODO.md` | Audit checklists (latest: 2026-07-24, closed out) and deferred items |
-| `CHANGELOG.md` | Released versions (current: 0.7.0) |
+| `CHANGELOG.md` | Released versions (current: 0.8.0) |
 | `QUICKSTART.md` | First-run walkthrough for end users |
 
 ## Project Structure

@@ -4,7 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.8.0] - 2026-08-05
+
+Pre-import QC moves into the browser: review rendered cards instead of
+spreadsheet rows, then build from what you approved.
 
 ### Added
 
