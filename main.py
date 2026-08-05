@@ -32,6 +32,7 @@ from process.review import export_cards_to_csv, load_cards_from_csv
 from process.known_words import load_known_words
 from anki.deck_builder import build_deck
 from anki.preview import export_cards_to_html
+from anki.review_ui import export_cards_to_review_ui
 from translate.manager import TranslationManager
 from utils.file_utils import get_cache_dir, sanitize_filename, write_stats_json
 
@@ -208,6 +209,7 @@ def process_pipeline(
     translation_config: dict = None,
     review_file: str = None,
     preview_file: str = None,
+    review_ui_file: str = None,
     known_words_file: str = None,
     enable_sentence_tts: bool = False,
     **kwargs,
@@ -233,6 +235,9 @@ def process_pipeline(
         review_file: Write cards to this CSV for pre-import QC and stop
             before TTS/deck build (resume with --from-review)
         preview_file: Write a static HTML preview of the cards to this path
+        review_ui_file: Write an editable HTML review page to this path and
+            stop before TTS/deck build (edit in a browser, download the CSV,
+            then resume with --from-review)
         known_words_file: Text file of already-known words to exclude from
             selection (one per line; comma/space separated also accepted)
         enable_sentence_tts: Also generate example-sentence audio with gTTS
@@ -397,22 +402,35 @@ def process_pipeline(
         )
         print(f"\nPreview written to {preview_path}")
 
-    # Step 8.4: Pre-import QC stop — write the review file and end the run
-    # before TTS/deck build, so deleted rows never cost audio downloads.
-    if review_file:
-        review_path = export_cards_to_csv(cards, review_file, cedict=cedict)
-        print(f"\nReview file written to {review_path}")
+    # Step 8.4: Pre-import QC stop — write the review artifacts and end the
+    # run before TTS/deck build, so dropped rows never cost audio downloads.
+    # --review and --review-ui are the CSV and browser forms of the same
+    # stop; either one alone ends the run, and both may be passed together.
+    if review_file or review_ui_file:
+        review_path = None
+        if review_file:
+            review_path = export_cards_to_csv(cards, review_file, cedict=cedict)
+            print(f"\nReview file written to {review_path}")
+        if review_ui_file:
+            review_ui_path = export_cards_to_review_ui(
+                cards, review_ui_file, cedict=cedict, deck_name=deck_name, cloze=cloze
+            )
+            print(f"\nReview page written to {review_ui_path}")
         if enable_tts or enable_sentence_tts:
             print(
-                "Note: audio is not generated in --review mode (deleted rows would "
+                "Note: audio is not generated in review mode (dropped rows would "
                 "cost downloads); pass --tts to the --from-review build instead."
             )
         # Stats describe selection/translation, all of which has happened by
-        # now, so a --review run still honours --stats.
+        # now, so a review run still honours --stats.
         if stats_file:
             export_stats(review_path=review_path)
-        print("Edit or delete rows (blank word/sentence = drop), then build with:")
-        print(f'  uv run python main.py --from-review "{review_path}" --deck "{deck_name}"')
+        if review_file:
+            print("Edit or delete rows (blank word/sentence = drop), then build with:")
+            print(f'  uv run python main.py --from-review "{review_path}" --deck "{deck_name}"')
+        else:
+            print("Edit and drop cards in the browser, download the CSV, then build with:")
+            print(f'  uv run python main.py --from-review "<downloaded>.csv" --deck "{deck_name}"')
         return
 
     # Step 8.5: Generate TTS audio (optional, requires internet)
@@ -603,6 +621,14 @@ def main():
     )
 
     parser.add_argument(
+        "--review-ui",
+        default=None,
+        metavar="HTML",
+        help="Write an editable HTML review page and stop before deck build "
+        "(edit in a browser, download the CSV, then use --from-review)",
+    )
+
+    parser.add_argument(
         "--from-review",
         default=None,
         metavar="CSV",
@@ -615,6 +641,8 @@ def main():
         parser.error("--from-review builds from the review file; do not also pass --input")
     if args.from_review and args.review:
         parser.error("--review and --from-review cannot be combined")
+    if args.from_review and args.review_ui:
+        parser.error("--review-ui and --from-review cannot be combined")
     if not args.from_review and not args.input:
         parser.error("--input is required (or use --from-review)")
 
@@ -659,6 +687,7 @@ def main():
             # raw config, so documented YAML keys actually reach the backends.
             "translation_config": config,
             "review_file": args.review,
+            "review_ui_file": args.review_ui,
             "preview_file": args.preview,
             "known_words_file": resolve(args.known_words, ["known_words_file"], None),
             "enable_sentence_tts": resolve(args.tts_sentences, ["enable_sentence_tts"], False),

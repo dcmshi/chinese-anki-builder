@@ -111,6 +111,57 @@ class TestNegatableBooleanFlags:
         assert params["cloze"] is True
 
 
+class TestReviewUiFlag:
+    """--review-ui is the browser equivalent of --review: same QC stop point,
+    an editable page instead of a CSV.
+
+    Coverage here is flag plumbing only, matching how --review is covered.
+    That the stop actually happens before TTS/deck build is verified by the
+    smoke run documented in the plan, not automatically.
+    """
+
+    def _resolved_params(self, monkeypatch, argv, config=None):
+        captured = {}
+        monkeypatch.setattr("sys.argv", ["main.py"] + argv)
+        monkeypatch.setattr("main.load_config", lambda path=None: config or {})
+        monkeypatch.setattr("main.process_pipeline", lambda **kwargs: captured.update(kwargs))
+        main()
+        return captured
+
+    def test_flag_reaches_the_pipeline(self, monkeypatch):
+        params = self._resolved_params(
+            monkeypatch, ["--input", "x.epub", "--review-ui", "cards.html"]
+        )
+
+        assert params["review_ui_file"] == "cards.html"
+
+    def test_absent_flag_is_none(self, monkeypatch):
+        """Flags default to None so "not passed" stays distinguishable."""
+        params = self._resolved_params(monkeypatch, ["--input", "x.epub"])
+
+        assert params["review_ui_file"] is None
+
+    def test_combines_with_review(self, monkeypatch):
+        """Both write their artifact and stop; neither excludes the other."""
+        params = self._resolved_params(
+            monkeypatch,
+            ["--input", "x.epub", "--review", "cards.csv", "--review-ui", "cards.html"],
+        )
+
+        assert params["review_file"] == "cards.csv"
+        assert params["review_ui_file"] == "cards.html"
+
+    def test_conflicts_with_from_review(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            "sys.argv", ["main.py", "--from-review", "x.csv", "--review-ui", "y.html"]
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        assert exc_info.value.code == 2
+        assert "--review-ui" in capsys.readouterr().err
+
+
 class TestCliErrorHandling:
     """Regression: user-input errors (bad --config path, bad --hsk spec)
     used to escape main()'s error handler and dump raw tracebacks."""

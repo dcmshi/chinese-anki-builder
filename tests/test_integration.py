@@ -210,7 +210,8 @@ class TestFullPipeline:
         assert stats["cards_created"] > 0
         assert stats["review_file"] == str(review_csv)
         assert stats["output"] is None  # no .apkg was built
-        assert "audio is not generated in --review mode" in capsys.readouterr().out
+        # Wording is flag-agnostic: --review and --review-ui share this stop.
+        assert "audio is not generated in review mode" in capsys.readouterr().out
 
     def test_stats_report_pre_hsk_multi_char_count(
         self, book_epub, offline_pipeline, tmp_path, monkeypatch
