@@ -26,10 +26,11 @@ from extract.pdf_extractor import extract_text_from_pdf
 from process.text_cleaner import clean_text, split_sentences
 from process.tokenizer import tokenize_text, compute_word_frequency, filter_multi_char_words
 from process.cedict_loader import load_cedict
-from process.word_selector import select_top_words, create_word_cards
+from process.word_selector import select_top_words, create_word_cards, create_wordlist_cards
 from process.hsk_filter import filter_by_hsk, parse_hsk_levels, validate_hsk_levels
 from process.review import export_cards_to_csv, load_cards_from_csv
 from process.known_words import load_known_words
+from process.wordlist import load_wordlist
 from anki.deck_builder import build_deck
 from anki.preview import export_cards_to_html
 from anki.review_ui import export_cards_to_review_ui
@@ -194,6 +195,55 @@ def generate_audio_files(cards, words: bool = True, sentences: bool = False) -> 
     return media_files
 
 
+def read_book(input_path: str):
+    """
+    Extract a book and split it into sentences.
+
+    Returns:
+        (chapters, sentences, sentence_chapters, cleaned_text): the extracted
+        chapters, the sentence list, a map of sentence -> chapter title (first
+        chapter containing it wins), and the full cleaned text for tokenizing
+    """
+    chapters = extract_book(input_path)
+
+    # Clean and split each chapter, tracking which chapter each sentence
+    # came from so cards can be tagged with their source chapter.
+    print("\nCleaning text and splitting into sentences...")
+    sentences = []
+    sentence_chapters = {}
+    cleaned_chapter_texts = []
+    for chapter in chapters:
+        cleaned = clean_text(chapter.text)
+        if not cleaned:
+            continue
+        cleaned_chapter_texts.append(cleaned)
+        for sent in split_sentences(cleaned):
+            sentences.append(sent)
+            sentence_chapters.setdefault(sent, chapter.title)
+    cleaned_text = "\n".join(cleaned_chapter_texts)
+    print(f"Found {len(sentences)} sentences across {len(chapters)} chapter(s)")
+    return chapters, sentences, sentence_chapters, cleaned_text
+
+
+def init_translation_manager(translation_config: dict, cedict) -> TranslationManager:
+    """Create and initialize the translation system from the raw config."""
+    print("\nInitializing translation system...")
+    translation_config = translation_config or {}
+    # Persistent cross-run cache (re-running the same book skips
+    # re-translation); disable with `translation_cache: false` in config.
+    cache_path = None
+    if translation_config.get("translation_cache", True):
+        cache_path = get_cache_dir() / "translations.json"
+    translation_manager = TranslationManager(config=translation_config, cache_path=cache_path)
+    translation_manager.set_cedict(cedict)
+    prefer_offline = translation_config.get("prefer_offline", True)
+    if translation_manager.initialize(prefer_offline=prefer_offline):
+        print(f"Active translation backend: {translation_manager.get_active_backend_name()}")
+    else:
+        print("Warning: No translation backend initialized")
+    return translation_manager
+
+
 def process_pipeline(
     input_path: str,
     deck_name: str = None,
@@ -250,26 +300,8 @@ def process_pipeline(
     print(f"Building Anki deck: {deck_name}")
     print("=" * 60)
 
-    # Step 1: Extract text
-    chapters = extract_book(input_path)
-
-    # Step 2-3: Clean and split each chapter, tracking which chapter each
-    # sentence came from so cards can be tagged with their source chapter.
-    print("\nCleaning text and splitting into sentences...")
-    sentences = []
-    sentence_chapters = {}
-    cleaned_chapter_texts = []
-    for chapter in chapters:
-        cleaned = clean_text(chapter.text)
-        if not cleaned:
-            continue
-        cleaned_chapter_texts.append(cleaned)
-        for sent in split_sentences(cleaned):
-            sentences.append(sent)
-            # First chapter containing a given sentence wins
-            sentence_chapters.setdefault(sent, chapter.title)
-    cleaned_text = "\n".join(cleaned_chapter_texts)
-    print(f"Found {len(sentences)} sentences across {len(chapters)} chapter(s)")
+    # Steps 1-3: Extract text, clean it and split into sentences
+    chapters, sentences, sentence_chapters, cleaned_text = read_book(input_path)
 
     # Step 4: Tokenize
     print("\nTokenizing text...")
@@ -322,20 +354,7 @@ def process_pipeline(
     cedict = load_cedict()
 
     # Step 7.5: Initialize translation system
-    print("\nInitializing translation system...")
-    translation_config = translation_config or {}
-    # Persistent cross-run cache (re-running the same book skips
-    # re-translation); disable with `translation_cache: false` in config.
-    cache_path = None
-    if translation_config.get("translation_cache", True):
-        cache_path = get_cache_dir() / "translations.json"
-    translation_manager = TranslationManager(config=translation_config, cache_path=cache_path)
-    translation_manager.set_cedict(cedict)
-    prefer_offline = translation_config.get("prefer_offline", True)
-    if translation_manager.initialize(prefer_offline=prefer_offline):
-        print(f"Active translation backend: {translation_manager.get_active_backend_name()}")
-    else:
-        print("Warning: No translation backend initialized")
+    translation_manager = init_translation_manager(translation_config, cedict)
 
     # Step 8: Create word cards (filter out words without definitions)
     print("\nCreating word cards...")
@@ -518,15 +537,140 @@ def build_from_review(
     print("=" * 60)
 
 
+def build_from_wordlist(
+    wordlist_file: str,
+    input_path: str = None,
+    deck_name: str = None,
+    output_dir: str = "output",
+    min_sentence_length: int = 10,
+    max_sentence_length: int = 100,
+    cloze: bool = False,
+    enable_tts: bool = False,
+    enable_sentence_tts: bool = False,
+    translation_config: dict = None,
+    preview_file: str = None,
+    known_words_file: str = None,
+):
+    """
+    Build a deck with one card per word in a word list (e.g. an HSK level),
+    in list order, instead of selecting words by frequency.
+
+    Example sentences come from the book when input_path is given, else from
+    the list's sentence column, else the card is word-only. Word-only cards
+    can't be cloze cards, so build_deck drops them in --cloze mode.
+
+    Args:
+        wordlist_file: TXT/CSV/TSV word list (see process.wordlist)
+        input_path: Optional EPUB or PDF to take example sentences from
+        deck_name: Name for the Anki deck (default: word list filename)
+        output_dir: Output directory
+        min_sentence_length: Minimum example-sentence length
+        max_sentence_length: Maximum example-sentence length
+        cloze: Build cloze-deletion cards instead of word-in-sentence cards
+        enable_tts: Generate word audio with gTTS (requires internet + tts extra)
+        enable_sentence_tts: Also generate example-sentence audio with gTTS
+        translation_config: Raw config dict passed to the translation system
+        preview_file: Write a static HTML preview of the cards to this path
+        known_words_file: Text file of already-known words to leave out
+    """
+    if deck_name is None:
+        deck_name = Path(wordlist_file).stem
+
+    print("=" * 60)
+    print(f"Building Anki deck from word list: {deck_name}")
+    print("=" * 60)
+
+    entries = load_wordlist(wordlist_file)
+    print(f"Loaded {len(entries)} words from {wordlist_file}")
+
+    if known_words_file:
+        known = load_known_words(known_words_file)
+        before = len(entries)
+        entries = [entry for entry in entries if entry.word not in known]
+        print(f"Excluding known words: {before - len(entries)} of the listed words are known")
+
+    if not entries:
+        print("ERROR: No words to build cards for.")
+        sys.exit(1)
+
+    sentences, sentence_chapters, word_freq = None, None, None
+    if input_path:
+        _, sentences, sentence_chapters, cleaned_text = read_book(input_path)
+        word_freq = compute_word_frequency(tokenize_text(cleaned_text)).word_freq
+
+    print("\nLoading CC-CEDICT dictionary...")
+    cedict = load_cedict()
+
+    # Only sentences need translating; a list with no sentences and no book
+    # skips loading translation models entirely.
+    translation_manager = None
+    if sentences or any(entry.sentence for entry in entries):
+        translation_manager = init_translation_manager(translation_config, cedict)
+
+    print("\nCreating word cards...")
+    cards = create_wordlist_cards(
+        entries,
+        sentences=sentences,
+        word_freq=word_freq,
+        cedict=cedict,
+        translation_manager=translation_manager,
+        sentence_chapters=sentence_chapters,
+        min_sentence_length=min_sentence_length,
+        max_sentence_length=max_sentence_length,
+    )
+    print(f"Created {len(cards)} cards")
+
+    if translation_manager is not None:
+        translation_manager.cleanup()
+
+    if not cards:
+        print("ERROR: No cards created. No listed word has a definition.")
+        sys.exit(1)
+
+    if preview_file:
+        preview_path = export_cards_to_html(
+            cards, preview_file, cedict=cedict, deck_name=deck_name, cloze=cloze
+        )
+        print(f"Preview written to {preview_path}")
+
+    media_files = (
+        generate_audio_files(cards, words=enable_tts, sentences=enable_sentence_tts)
+        if (enable_tts or enable_sentence_tts)
+        else []
+    )
+
+    print("\nBuilding Anki deck...")
+    output_path = Path(output_dir) / f"{sanitize_filename(deck_name)}.apkg"
+    build_deck(deck_name, cards, cedict, str(output_path), cloze=cloze, media_files=media_files)
+
+    print("\n" + "=" * 60)
+    print("✓ Deck generation complete!")
+    print(f"✓ Output: {output_path}")
+    print(f"✓ Total cards: {len(cards)}")
+    print("=" * 60)
+
+
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Generate Anki flashcards for learning Chinese from books",
+        description="Generate Anki flashcards for learning Chinese from books or word lists",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument(
-        "--input", "-i", help="Input EPUB or PDF file (required unless --from-review)"
+        "--input",
+        "-i",
+        help="Input EPUB or PDF file (required unless --from-review or --wordlist; "
+        "with --wordlist, the source of example sentences)",
+    )
+
+    parser.add_argument(
+        "--wordlist",
+        "-w",
+        default=None,
+        metavar="FILE",
+        help="Build one card per word in this TXT/CSV/TSV list (e.g. an HSK level) "
+        "instead of selecting words by frequency",
     )
 
     parser.add_argument("--deck", "-d", help="Deck name (default: filename)")
@@ -643,8 +787,20 @@ def main():
         parser.error("--review and --from-review cannot be combined")
     if args.from_review and args.review_ui:
         parser.error("--review-ui and --from-review cannot be combined")
-    if not args.from_review and not args.input:
-        parser.error("--input is required (or use --from-review)")
+    if args.wordlist:
+        for flag, value in (
+            ("--from-review", args.from_review),
+            ("--review", args.review),
+            ("--review-ui", args.review_ui),
+            ("--stats", args.stats),
+            ("--hsk", args.hsk),
+            ("--top-words", args.top_words),
+            ("--min-freq", args.min_freq),
+        ):
+            if value is not None:
+                parser.error(f"{flag} cannot be combined with --wordlist")
+    if not args.from_review and not args.input and not args.wordlist:
+        parser.error("--input is required (or use --from-review or --wordlist)")
 
     # Everything from config loading onward sits inside the error handler so
     # user-input problems (missing --config file, bad --hsk spec) print a
@@ -665,6 +821,23 @@ def main():
                 enable_tts=resolve(args.tts, ["enable_tts"], False),
                 enable_sentence_tts=resolve(args.tts_sentences, ["enable_sentence_tts"], False),
                 preview_file=args.preview,
+            )
+            return
+
+        if args.wordlist:
+            build_from_wordlist(
+                args.wordlist,
+                input_path=args.input,
+                deck_name=resolve(args.deck, ["deck_name"], None),
+                output_dir=resolve(args.output, ["output_dir"], "output"),
+                min_sentence_length=resolve(None, ["min_sentence_length"], 10),
+                max_sentence_length=resolve(None, ["max_sentence_length"], 100),
+                cloze=resolve(args.cloze, ["cloze"], False),
+                enable_tts=resolve(args.tts, ["enable_tts"], False),
+                enable_sentence_tts=resolve(args.tts_sentences, ["enable_sentence_tts"], False),
+                translation_config=config,
+                preview_file=args.preview,
+                known_words_file=resolve(args.known_words, ["known_words_file"], None),
             )
             return
 

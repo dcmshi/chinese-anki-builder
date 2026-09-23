@@ -9,12 +9,21 @@ CHINESE_CLOZE_MODEL_ID = 1607392320
 # Card template. The Sentence field carries inline HTML highlighting of the
 # target word (see anki.deck_builder.highlight_word_in_sentence), so the front
 # is just the sentence -- word, pinyin, and meaning are revealed on the back.
+# Word-list cards may have no sentence; those show the word on the front
+# (an empty front would make Anki skip generating the card).
 FRONT_TEMPLATE = """
+{{#Sentence}}
 <div class="sentence">{{Sentence}}</div>
+{{/Sentence}}
+{{^Sentence}}
+<div class="word-highlight">{{Word}}</div>
+{{/Sentence}}
 """
 
 BACK_TEMPLATE = """
+{{#Sentence}}
 <div class="sentence">{{Sentence}}</div>
+{{/Sentence}}
 {{#SentencePinyin}}
 <div class="sentence-pinyin">{{SentencePinyin}}</div>
 {{/SentencePinyin}}

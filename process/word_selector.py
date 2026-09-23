@@ -7,6 +7,7 @@ from process.pinyin_converter import sentence_to_pinyin
 from tqdm import tqdm
 
 if TYPE_CHECKING:
+    from process.wordlist import WordListEntry
     from translate.manager import TranslationManager
 
 
@@ -148,6 +149,47 @@ def find_sentence_for_word(
     return min(fallback, key=len)
 
 
+def translate_sentences(
+    translation_manager: Optional["TranslationManager"], sentences: List[str]
+) -> Dict[str, str]:
+    """
+    Translate sentences in one batch call, returning sentence -> translation.
+
+    The manager dedupes repeats and serves cache hits; managers without a
+    translate_batch (simple stubs) fall back to per-sentence calls.
+
+    Args:
+        translation_manager: Translation manager, or None (no translations)
+        sentences: Sentences to translate (repeats allowed)
+
+    Returns:
+        Mapping of each unique sentence to its translation
+    """
+    unique_sentences = list(dict.fromkeys(sentences))
+    if translation_manager is None or not unique_sentences:
+        return {}
+
+    print(f"Translating {len(unique_sentences)} example sentences...")
+    batch = getattr(translation_manager, "translate_batch", None)
+    if callable(batch):
+        translated = list(batch(unique_sentences))
+    else:
+        translated = [
+            translation_manager.translate(sent)
+            for sent in tqdm(unique_sentences, desc="Translating", unit="sentence")
+        ]
+    # zip() would silently truncate, leaving tail sentences untranslated
+    # with no clue why; say so and pad instead.
+    if len(translated) != len(unique_sentences):
+        print(
+            f"Warning: translation backend returned {len(translated)} results "
+            f"for {len(unique_sentences)} sentences; the remainder will have "
+            f"no translation"
+        )
+        translated = (translated + [""] * len(unique_sentences))[: len(unique_sentences)]
+    return dict(zip(unique_sentences, translated))
+
+
 def create_word_cards(
     words: List[str],
     sentences: List[str],
@@ -214,31 +256,8 @@ def create_word_cards(
         else:
             skipped_no_sentence += 1
 
-    # Phase 2: translate every selected sentence in one batch call. The
-    # manager dedupes repeats and serves cache hits; managers without a
-    # translate_batch (simple stubs) fall back to per-sentence calls.
-    translations: Dict[str, str] = {}
-    if translation_manager is not None and selections:
-        unique_sentences = list(dict.fromkeys(sent for _, sent in selections))
-        print(f"Translating {len(unique_sentences)} example sentences...")
-        batch = getattr(translation_manager, "translate_batch", None)
-        if callable(batch):
-            translated = list(batch(unique_sentences))
-        else:
-            translated = [
-                translation_manager.translate(sent)
-                for sent in tqdm(unique_sentences, desc="Translating", unit="sentence")
-            ]
-        # zip() would silently truncate, leaving tail sentences untranslated
-        # with no clue why; say so and pad instead.
-        if len(translated) != len(unique_sentences):
-            print(
-                f"Warning: translation backend returned {len(translated)} results "
-                f"for {len(unique_sentences)} sentences; the remainder will have "
-                f"no translation"
-            )
-            translated = (translated + [""] * len(unique_sentences))[: len(unique_sentences)]
-        translations = dict(zip(unique_sentences, translated))
+    # Phase 2: translate every selected sentence in one batch call.
+    translations = translate_sentences(translation_manager, [sent for _, sent in selections])
 
     # Phase 3: assemble the cards (order still follows the input word list).
     for word, sentence in tqdm(selections, desc="Creating cards", unit="word"):
@@ -267,5 +286,101 @@ def create_word_cards(
     if stats_out is not None:
         stats_out["skipped_no_definition"] = skipped_no_definition
         stats_out["skipped_no_sentence"] = skipped_no_sentence
+
+    return cards
+
+
+def create_wordlist_cards(
+    entries: List["WordListEntry"],
+    sentences: Optional[List[str]] = None,
+    word_freq: Optional[Counter] = None,
+    cedict: Dict = None,
+    translation_manager: Optional["TranslationManager"] = None,
+    sentence_chapters: Optional[Dict[str, str]] = None,
+    min_sentence_length: int = 10,
+    max_sentence_length: int = 100,
+    stats_out: Optional[Dict] = None,
+) -> List[WordCard]:
+    """
+    Create one card per word-list entry, in list order.
+
+    Each card's example sentence comes from, in order: the book sentences
+    (when a book was given), the entry's own sentence, or nothing -- a
+    word-only card. List pinyin/definition become the card's overrides, the
+    same fields a --from-review CSV sets.
+
+    Args:
+        entries: Word list entries (from process.wordlist.load_wordlist)
+        sentences: Optional book sentences to search for examples
+        word_freq: Optional book word frequencies (card frequency; 0 without a book)
+        cedict: Optional CC-CEDICT dictionary; entries with neither a CEDICT
+            entry nor a list definition are skipped
+        translation_manager: Optional translation manager for sentence translation
+        sentence_chapters: Optional map of book sentence -> chapter title
+        min_sentence_length: Minimum acceptable example-sentence length
+        max_sentence_length: Maximum acceptable example-sentence length
+        stats_out: Optional dict that receives skipped_no_definition and
+            word_only counts
+
+    Returns:
+        List of WordCard objects
+    """
+    sentence_index = build_sentence_index(sentences) if sentences else {}
+
+    selections = []
+    skipped_no_definition = 0
+    for entry in tqdm(entries, desc="Selecting sentences", unit="word"):
+        if cedict is not None and not entry.definition and entry.word not in cedict:
+            skipped_no_definition += 1
+            continue
+
+        sentence = None
+        if sentences:
+            if len(entry.word) >= 2:
+                candidates = [sentences[i] for i in sentence_index.get(entry.word[:2], [])]
+            else:
+                candidates = None  # single-char word: bigram index can't answer
+            sentence = find_sentence_for_word(
+                entry.word,
+                sentences,
+                min_len=min_sentence_length,
+                max_len=max_sentence_length,
+                candidates=candidates,
+            )
+        selections.append((entry, sentence or entry.sentence))
+
+    translations = translate_sentences(
+        translation_manager, [sent for _, sent in selections if sent]
+    )
+
+    cards = []
+    word_only = 0
+    for entry, sentence in selections:
+        if not sentence:
+            word_only += 1
+        chapter = ""
+        if sentence and sentence_chapters is not None:
+            chapter = sentence_chapters.get(sentence, "")
+        cards.append(
+            WordCard(
+                word=entry.word,
+                sentence=sentence,
+                frequency=word_freq[entry.word] if word_freq else 0,
+                chapter=chapter,
+                sentence_translation=translations.get(sentence, "") if sentence else "",
+                sentence_pinyin=sentence_to_pinyin(sentence) if sentence else "",
+                word_pinyin=entry.pinyin,
+                definition=entry.definition,
+            )
+        )
+
+    if skipped_no_definition > 0:
+        print(f"Skipped {skipped_no_definition} words without dictionary definitions")
+    if word_only > 0:
+        print(f"{word_only} words have no example sentence (word-only cards)")
+
+    if stats_out is not None:
+        stats_out["skipped_no_definition"] = skipped_no_definition
+        stats_out["word_only"] = word_only
 
     return cards

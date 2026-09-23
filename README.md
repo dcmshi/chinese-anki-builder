@@ -18,6 +18,8 @@ Automatically generate Anki flashcards for learning Chinese from EPUB and PDF bo
 - ✏️ Editable browser review page: edit and drop rendered cards, download the
   CSV (`--review-ui`)
 - 🚫 Known-words filtering so decks contain only new vocabulary (`--known-words`)
+- 📋 Build straight from a vocabulary list such as an HSK level (`--wordlist`),
+  optionally taking example sentences from a book
 - 🔉 Optional word and sentence audio (`--tts`, `--tts-sentences`)
 - 🗣️ Add pinyin (word + sentence, tone marks) and English definitions
 - 🌐 Pluggable translation backends (HY-MT1.5, NLLB-200, Argos Translate neural MT, or CC-CEDICT fallback)
@@ -66,10 +68,12 @@ uv run python main.py --input book.pdf --output my_decks
 
 ```bash
 uv run python main.py --input <file> [options]
+uv run python main.py --wordlist <file> [--input <book>] [options]
 ```
 
 **Options:**
-- `--input, -i` - Input EPUB or PDF file (required)
+- `--input, -i` - Input EPUB or PDF file (required unless `--wordlist` or `--from-review`)
+- `--wordlist, -w` - Build one card per word in a TXT/CSV/TSV list (see below)
 - `--deck, -d` - Deck name (default: filename)
 - `--top-words, -n` - Number of top words to select (default: 150)
 - `--min-freq, -m` - Minimum word frequency (default: 2)
@@ -113,6 +117,30 @@ uv run python main.py --input book.epub --deck "My Deck" --review-ui cards.html
 # ... open cards.html, edit and drop cards, click "Download reviewed CSV" ...
 uv run python main.py --from-review ~/Downloads/cards.csv --deck "My Deck"
 ```
+
+**Word-list decks** (e.g. one deck per HSK level): `--wordlist` makes one
+card per listed word, in list order, single characters included, instead of
+picking words by frequency.
+
+```bash
+# List only: sentence/pinyin/definition from the list if present, else CC-CEDICT
+uv run python main.py --wordlist hsk1.csv --deck "HSK 1"
+
+# List + book: example sentences come from the book
+uv run python main.py --wordlist hsk3.csv --input reader.epub --deck "HSK 3 in context"
+```
+
+- `.txt`: one word per line (anything after the first tab or comma is ignored)
+- `.csv` / `.tsv`: columns matched by header name: word (`word`, `simplified`,
+  `hanzi`, ...), and optional `sentence`/`example`, `pinyin`, and
+  `definition`/`meaning`. Without a recognized header the first column is the word.
+- Example sentence priority: book > list `sentence` column > none. Cards with
+  no sentence are word-only (the word on the front); `--cloze` drops them.
+- List pinyin/definition override CC-CEDICT, and a listed word missing from
+  CC-CEDICT is kept when the list defines it.
+- Combines with `--known-words`, `--preview`, `--cloze`, `--tts`. Not with
+  `--hsk`, `--top-words`, `--min-freq`, `--stats`, `--review`, `--review-ui`
+  (the list already is the selection; edit it directly instead of reviewing).
 
 Word, frequency and chapter are read-only in the page and round-trip
 untouched; sentence, sentence pinyin, translation, word pinyin and

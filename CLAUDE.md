@@ -4,7 +4,8 @@
 (EPUB/PDF). Target users are Chinese learners who read native content and
 want high-quality, low-noise decks.
 
-**Input**: EPUB or PDF (Simplified Chinese only) → **Output**: Anki `.apkg`
+**Input**: EPUB or PDF (Simplified Chinese only), and/or a vocabulary word
+list (`--wordlist`) → **Output**: Anki `.apkg`
 
 ## Where the Docs Live
 
@@ -44,6 +45,7 @@ chinese-anki-builder/
 │   ├── pinyin_converter.py      # Tone-mark pinyin (converts CEDICT numbers)
 │   ├── review.py                # Pre-import QC CSV export/load
 │   ├── known_words.py           # Known-words list loading (exclusion)
+│   ├── wordlist.py              # --wordlist loading (TXT/CSV/TSV, one card per word)
 │   └── sentence_translator.py
 │
 ├── translate/                   # Translation backends

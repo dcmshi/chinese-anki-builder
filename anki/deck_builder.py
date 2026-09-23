@@ -43,11 +43,12 @@ def highlight_word_in_sentence(word: str, sentence: str) -> str:
     can't break the card template.
 
     Every occurrence is highlighted, including one nested inside a longer word
-    (学习 inside 学习者). That is deliberate: card words always carry 2+ Han
-    characters, so a nested match is the same morpheme rather than a
+    (学习 inside 学习者). That is deliberate: book-selected words always carry
+    2+ Han characters, so a nested match is the same morpheme rather than a
     coincidence, and marking it needs no re-tokenization of the sentence --
     which would also have to agree with jieba's segmentation of hand-edited
-    --from-review rows.
+    --from-review rows. (--wordlist cards can be single characters, where
+    nested matches are likelier; they are highlighted the same way.)
 
     Args:
         word: The target word

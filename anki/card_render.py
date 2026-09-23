@@ -121,7 +121,9 @@ def resolve_faces(
         front = cloze_front(card.word, card.sentence)
         back = cloze_back(card.word, card.sentence)
     else:
-        front = highlight_word_in_sentence(card.word, card.sentence)
+        # Word-only cards (word lists without sentences) show the word itself,
+        # matching the {{^Sentence}} branch of the Anki front template.
+        front = highlight_word_in_sentence(card.word, card.sentence or card.word)
         back = front
 
     return CardFaces(
