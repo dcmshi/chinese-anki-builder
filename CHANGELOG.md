@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+
+- **`--wordlist`: build a deck from a vocabulary list** (e.g. one HSK level)
+  instead of selecting words by frequency. One card per listed word, in list
+  order, single-character words included. TXT (one word per line) or CSV/TSV
+  with columns matched by header name: word, and optional sentence, pinyin
+  and definition. List pinyin/definition become the card's overrides.
+- Combine with `--input book.epub` to take example sentences from a book;
+  otherwise the list's sentence column is used, or the card is word-only.
+- Word-only cards: the front template shows the word when the Sentence field
+  is empty (the preview matches); `--cloze` drops them, as cloze notes need a
+  deletion.
+
+### Changed
+
+- Book reading and translation-system setup in `main.py`, and batch sentence
+  translation in `process/word_selector.py`, are factored into shared helpers
+  (`read_book`, `init_translation_manager`, `translate_sentences`).
+
 ## [0.8.0] - 2026-08-05
 
 Pre-import QC moves into the browser: review rendered cards instead of

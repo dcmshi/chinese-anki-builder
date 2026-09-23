@@ -289,7 +289,7 @@ uv run python main.py \
 
 ### Unit Tests
 
-**Coverage**: 498 tests, 90% overall coverage (source modules)
+**Coverage**: 524 tests, 90% overall coverage (source modules)
 
 **Test Modules**: word selection, CEDICT loading/parsing, deck building,
 text cleaning/sentence splitting, tokenization, pinyin conversion, EPUB/PDF

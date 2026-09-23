@@ -194,7 +194,11 @@ class TestDeckBuilder:
         """Regression: the front used to show the word separately below the
         sentence instead of highlighting it inside (as README promises)."""
         assert "{{Sentence}}" in FRONT_TEMPLATE
-        assert "{{Word}}" not in FRONT_TEMPLATE  # answer side only
+        # The word appears on the front only for word-only (--wordlist) cards,
+        # inside the inverted {{^Sentence}} section -- never beside a sentence.
+        sentence_branch, word_only_branch = FRONT_TEMPLATE.split("{{^Sentence}}")
+        assert "{{Word}}" not in sentence_branch
+        assert "{{Word}}" in word_only_branch
         assert ".target" in CARD_CSS
 
     def test_chinese_model_structure(self):
